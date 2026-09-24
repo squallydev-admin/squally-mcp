@@ -36,7 +36,8 @@ jobs:
       - name: Test
         run: npm test
 
-      # What `npm publish` would actually upload - a file list in the log is
-      # the cheapest guard against shipping src/ or node_modules by accident.
+      # What a publish would actually upload - a file list in the log is the
+      # cheapest guard against shipping src/ or node_modules by accident.
+      # (Releases go out with `npm stage publish`; see publish.yml.)
       - name: Pack (dry run)
         run: npm pack --dry-run

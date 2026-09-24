@@ -4,6 +4,17 @@ name: Publish
 # the same rule squally-reporter follows ("Kein automatischer Rollout").
 #
 #   npm version patch && git push --follow-tags
+#
+# STAGED, NOT DIRECT. This repository's trusted publisher on npm is configured
+# to allow `npm stage publish` only - direct `npm publish` is not permitted for
+# it. The workflow therefore uploads the tarball into the registry's staging
+# area and stops; the version is not installable until a maintainer approves it
+# on npmjs.com (Staged Packages -> Approve), which asks for 2FA.
+#
+# That split is the point: `npm stage publish` never prompts for 2FA, which is
+# what makes it usable from CI at all, and the human approval is where
+# proof-of-presence happens instead. A compromised workflow can stage a version;
+# it cannot make one installable.
 on:
   push:
     tags: ["v*"]
@@ -22,11 +33,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NODE 24, NOT 22, AND THE REASON IS npm. Staged publishing needs npm
+      # >= 11.15.0 and Node >= 22.14.0 (docs.npmjs.com/staged-publishing).
+      # Node 22 still bundles npm 10.9.9 - checked against nodejs.org/dist -
+      # so a job on Node 22 would reach `npm stage` and not have it. Node 24
+      # bundles npm 11.x. This says nothing about the package's own support;
+      # ci.yml still tests on 22 and 24, and `engines` stays >=22.
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
           cache: npm
+
+      # Belt and braces, and loud: if a future runner image ships an older npm,
+      # this fails with the requirement instead of with "Unknown command".
+      - name: npm is new enough for staged publishing
+        run: |
+          echo "npm $(npm --version), node $(node --version)"
+          NPM_VERSION="$(npm --version)" node -e '
+            const [maj, min] = process.env.NPM_VERSION.split(".").map(Number);
+            if (maj < 11 || (maj === 11 && min < 15)) {
+              console.error(`staged publishing needs npm >= 11.15.0, this runner has ${process.env.NPM_VERSION}`);
+              process.exit(1);
+            }
+            console.log("npm is new enough");
+          '
 
       - run: npm ci
 
@@ -46,6 +77,16 @@ jobs:
 
       # No NODE_AUTH_TOKEN: trusted publishing mints a short-lived credential
       # from the OIDC token above. --provenance attaches a signed statement
-      # linking the tarball to this workflow run and this commit.
-      - name: Publish
-        run: npm publish --provenance --access public
+      # linking the tarball to this workflow run and this commit; it survives
+      # the staging step, so the approved version carries it.
+      #
+      # This does NOT make the version installable. It sits in the registry's
+      # staging area until a maintainer approves it.
+      - name: Stage publish
+        run: npm stage publish --provenance --access public
+
+      - name: Say what is left to do
+        run: |
+          echo "Staged ${GITHUB_REF_NAME}. It is NOT installable yet."
+          echo "Approve it at https://www.npmjs.com/package/squally-mcp -> Staged Packages -> Approve (asks for 2FA),"
+          echo "or run: npm stage list squally-mcp && npm stage approve <stage-id>"

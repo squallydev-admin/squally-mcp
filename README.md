@@ -144,6 +144,58 @@ hand, so the two cannot drift. `test/drift.test.js` compares the vendored copy
 against the live document and fails when an operation or parameter has moved;
 it skips loudly when offline.
 
+## Releasing
+
+Publishing is **staged**: CI uploads the tarball, a maintainer approves it, and
+only then is the version installable. `npm stage publish` never asks for 2FA,
+which is what makes it usable from a workflow; the 2FA prompt moves to the
+approval step, so a compromised workflow can stage a version but cannot put one
+in front of users. Direct `npm publish` is not permitted for this package's
+trusted publisher, so this is the only route.
+
+> **0.1.0 is the exception.** It was published by hand with `npm publish`
+> before the trusted publisher existed, so it carries no provenance
+> attestation. Every version from 0.1.1 on goes through the steps below.
+
+1. **Bump and tag.** The lockfile belongs to the release commit, so let `npm
+   version` write both and commit them together:
+
+   ```bash
+   npm install            # only if package.json changed by hand
+   npm version patch      # or minor / major - writes package.json + lockfile, makes the tag
+   git push --follow-tags
+   ```
+
+2. **The tag starts the workflow.** `.github/workflows/publish.yml` runs on
+   `v*`: it tests, checks that the tag and `package.json` agree, and runs
+
+   ```bash
+   npm stage publish --provenance --access public
+   ```
+
+   through npm's trusted publishing (OIDC) — no npm token in GitHub secrets.
+   `--provenance` attaches a signed statement linking the tarball to that
+   workflow run and commit.
+
+3. **Approve the staged version.** On
+   [npmjs.com/package/squally-mcp](https://www.npmjs.com/package/squally-mcp) →
+   **Staged Packages** → **Approve**, which asks for 2FA. Or from a terminal:
+
+   ```bash
+   npm stage list squally-mcp
+   npm stage view <stage-id>       # what is in the tarball
+   npm stage approve <stage-id>    # also asks for 2FA
+   npm stage reject <stage-id>     # if something is wrong
+   ```
+
+   Until this step the version exists in the registry but installs nothing.
+
+**Requirements for step 3 on your machine:** npm **11.15.0 or later** and Node
+**22.14.0 or higher** ([npm docs](https://docs.npmjs.com/staged-publishing/)).
+Node 22 still bundles npm 10.9.9, so check `npm --version` rather than assuming
+your Node version brought a new enough npm. The workflow uses Node 24 for the
+same reason and fails with that requirement if a runner ever ships an older npm.
+
 ## License
 
 MIT

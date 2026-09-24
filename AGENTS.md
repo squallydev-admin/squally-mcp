@@ -32,6 +32,26 @@ offene Punkte in `../squally-app/docs/status.md`.
   ein `console.log` zerstört den JSON-RPC-Strom.
 - **Kein automatischer Rollout** — veröffentlicht wird über einen Tag
   (`publish.yml`), nicht bei jedem Push.
+- **Veröffentlicht wird GESTAGED, nie direkt.** Der Trusted Publisher dieses
+  Pakets erlaubt ausschließlich `npm stage publish`; `npm publish` ist für ihn
+  nicht freigegeben. (Einzige Ausnahme in der Historie: **0.1.0** ging von Hand
+  mit `npm publish` hinaus, bevor der Trusted Publisher eingerichtet war — diese
+  eine Version trägt deshalb keine Provenance. Ab 0.1.1 gilt ausnahmslos der
+  Weg unten.) Der Ablauf ist: `npm version <patch|minor|major>` (schreibt
+  package.json **und** Lockdatei und setzt den Tag) → `git push --follow-tags` →
+  der Workflow staged mit `npm stage publish --provenance --access public` →
+  **ein Mensch gibt die Version auf npmjs.com frei** (Staged Packages →
+  Approve, mit 2FA) oder per `npm stage approve <stage-id>`. Vorher ist die
+  Version in der Registry vorhanden, aber nicht installierbar.
+  `npm stage publish` fragt nie nach 2FA — genau deshalb läuft es in CI; der
+  Nachweis der Anwesenheit sitzt in der Freigabe.
+- **Staged Publishing braucht npm ≥ 11.15.0 und Node ≥ 22.14.0**
+  (docs.npmjs.com/staged-publishing). Node 22 liefert weiterhin npm 10.9.9 mit,
+  also `npm --version` prüfen statt von der Node-Version darauf zu schließen.
+  `publish.yml` läuft deshalb auf Node 24 und bricht mit genau dieser
+  Anforderung ab, wenn ein Runner ein älteres npm mitbringt. Das sagt nichts
+  über die Unterstützung des Pakets selbst: `engines` bleibt `>=22`, und
+  `ci.yml` testet 22 und 24.
 - **Messen statt aus der Doku übernehmen.**
 - **Prämissen-Konflikte melden statt still zu überschreiben.**
 - **Ehrlich melden, was nicht geprüft werden konnte.**
