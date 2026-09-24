@@ -1,0 +1,48 @@
+{
+  "name": "squally-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server for Squally — read-only access to your Playwright test runs, flaky tests and failures.",
+  "license": "MIT",
+  "author": "Squally",
+  "homepage": "https://app.squally.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/squallydev-admin/squally-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/squallydev-admin/squally-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "playwright",
+    "flaky-tests",
+    "squally"
+  ],
+  "type": "module",
+  "bin": {
+    "squally-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "vendor:openapi": "node scripts/vendor-openapi.mjs",
+    "test": "npm run build && node --test \"test/**/*.test.js\"",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0"
+  }
+}

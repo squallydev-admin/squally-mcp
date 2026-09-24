@@ -1,0 +1,51 @@
+name: Publish
+
+# Tag-triggered, never automatic on a push to main: a release is a decision,
+# the same rule squally-reporter follows ("Kein automatischer Rollout").
+#
+#   npm version patch && git push --follow-tags
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      # The OIDC token npm exchanges for a short-lived publish credential.
+      # This is what makes trusted publishing work without an npm token in
+      # GitHub secrets, and what --provenance attests against.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+
+      # The tag and package.json must agree, or the published version is not
+      # the one the tag names and `git checkout v0.1.0` stops reproducing it.
+      - name: Tag matches package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag v$TAG does not match package.json $PKG"
+            exit 1
+          fi
+
+      # No NODE_AUTH_TOKEN: trusted publishing mints a short-lived credential
+      # from the OIDC token above. --provenance attaches a signed statement
+      # linking the tarball to this workflow run and this commit.
+      - name: Publish
+        run: npm publish --provenance --access public

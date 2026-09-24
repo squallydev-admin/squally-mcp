@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Two versions, because the engines floor is what users get and the current
+    # release is what they will get next. A break on either is worth knowing
+    # before someone installs it.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # `npm test` builds first, so this covers the build as well. The drift
+      # test reaches app.squally.dev; on a runner without egress it skips
+      # loudly rather than passing quietly.
+      - name: Test
+        run: npm test
+
+      # What `npm publish` would actually upload - a file list in the log is
+      # the cheapest guard against shipping src/ or node_modules by accident.
+      - name: Pack (dry run)
+        run: npm pack --dry-run
