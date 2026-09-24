@@ -12,7 +12,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseDocument, loadDocument } from "../dist/openapi.js";
+import {
+  inputSchemaFor,
+  loadDocument,
+  outputSchemaFor,
+  parseDocument,
+} from "../dist/openapi.js";
 import { TOOLS } from "../dist/tools.js";
 
 const LIVE_URL = "https://app.squally.dev/openapi/v1.json";
@@ -82,6 +87,67 @@ test("the vendored OpenAPI document still matches the live one", async (t) => {
       "and re-pin the digest in test/tools.test.js.",
   );
 });
+
+test("the schemas the agent sees are still the ones upstream publishes", async (t) => {
+  // STRONGER THAN THE TEST ABOVE, and added 24.09. after a real miss: that one
+  // compares operations, paths and parameter NAMES, so when squally-app
+  // reworded the `timeLostMs` description - changing what every client is told
+  // the field means - nothing here objected. A description is not decoration:
+  // it is most of what the model has to go on when it decides which tool to
+  // call and how to read the answer.
+  //
+  // Compared through inputSchemaFor/outputSchemaFor rather than on the raw
+  // document, so this asserts the schemas as BUILT - including the two
+  // parameter descriptions this package overrides on purpose
+  // (PARAMETER_DESCRIPTIONS). Those are applied to both sides equally, so an
+  // intentional local override cannot trip the check, while an upstream
+  // reword of anything else does.
+  const live = await fetchLive();
+  if (!live.ok) {
+    t.skip(
+      `NOT CHECKED - could not reach ${LIVE_URL} (${live.why}). ` +
+        "Tool schemas may be out of date; re-run with a network connection.",
+    );
+    return;
+  }
+
+  const vendored = loadDocument();
+  const problems = [];
+
+  for (const tool of TOOLS) {
+    const here = vendored.operations.get(tool.operationId);
+    const there = live.doc.operations.get(tool.operationId);
+    if (!there) continue; // already reported by the test above
+
+    for (const [what, build] of [
+      ["inputSchema", inputSchemaFor],
+      ["outputSchema", outputSchemaFor],
+    ]) {
+      const mine = JSON.stringify(build(here));
+      const upstream = JSON.stringify(build(there));
+      if (mine === upstream) continue;
+
+      // Name the first field that differs; a whole-schema diff in an assertion
+      // message is unreadable and the first one is usually the whole story.
+      problems.push(`${tool.name}: ${what} differs from upstream${firstDifference(mine, upstream)}`);
+    }
+  }
+
+  assert.deepEqual(
+    problems,
+    [],
+    "the schemas clients are given no longer match the published API. Re-vendor with " +
+      "`npm run vendor:openapi`, read the diff, and re-pin the digest in test/tools.test.js.",
+  );
+});
+
+/** A short " (near: ...)" pointing at where two serialised schemas diverge. */
+function firstDifference(a, b) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
+  const from = Math.max(0, i - 40);
+  return i >= a.length && i >= b.length ? "" : ` (near: ...${a.slice(from, i + 60)})`;
+}
 
 test("the live document's error codes are still the ones the results rely on", async (t) => {
   const live = await fetchLive();

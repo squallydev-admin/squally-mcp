@@ -238,7 +238,7 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // the commit what changed for clients.
   assert.equal(
     digest(toolList()),
-    "29e941f65a3922cb",
+    "a411646bde3a53c7",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

@@ -131,7 +131,7 @@
       "code": "test_not_found",
       "status": 404,
       "when": "No test with this name in this project.",
-      "action": "Check the test name (URL-encoded, \"/\" as %2F) and filePath; do not retry.",
+      "action": "Check the test name and filePath exactly as Squally shows them; do not retry.",
       "hasBody": true
     },
     {
@@ -1775,7 +1775,7 @@
                       "alsoActive": [
                         "failure_rate_broken"
                       ],
-                      "timeLostMs": null,
+                      "timeLostMs": 540000,
                       "flakeScore": 0.9,
                       "flipRate": 0.05,
                       "failureRate": 1,
@@ -4945,7 +4945,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Time lost to failed and retried attempts in the window, ms (approximation: final attempt duration x attempts). null does NOT mean zero: the test never passed in the window - the worst case."
+                  "description": "Time lost to failed and retried attempts in the window, ms (approximation: wasted attempts x the final attempt duration). A failed run wastes every attempt it made, a run rescued by a retry wastes the attempts before it, and a run that passed first time wastes none - so 0 is a real measurement. Computed for every listed test; null is a guard for a test with no occurrence in the window and should not occur here."
                 },
                 "flakeScore": {
                   "type": "number"
