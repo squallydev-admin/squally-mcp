@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import {
   inputSchemaFor,
   loadDocument,
+  OMITTED_PARAMETERS,
   outputSchemaFor,
   parseDocument,
 } from "../dist/openapi.js";
@@ -97,11 +98,12 @@ test("the schemas the agent sees are still the ones upstream publishes", async (
   // call and how to read the answer.
   //
   // Compared through inputSchemaFor/outputSchemaFor rather than on the raw
-  // document, so this asserts the schemas as BUILT - including the two
-  // parameter descriptions this package overrides on purpose
-  // (PARAMETER_DESCRIPTIONS). Those are applied to both sides equally, so an
-  // intentional local override cannot trip the check, while an upstream
-  // reword of anything else does.
+  // document, so this asserts the schemas as BUILT - including the parameter
+  // descriptions this package overrides on purpose (PARAMETER_DESCRIPTIONS)
+  // and the parameters it leaves out (OMITTED_PARAMETERS). Both are applied to
+  // both sides equally, so an intentional local deviation cannot trip the
+  // check, while an upstream reword of anything else does. Whether the
+  // omissions are still harmless is the next test's job.
   const live = await fetchLive();
   if (!live.ok) {
     t.skip(
@@ -160,4 +162,56 @@ test("the live document's error codes are still the ones the results rely on", a
     (code) => !live.doc.errorCodes.has(code),
   );
   assert.deepEqual(missing, [], "error codes disappeared upstream; re-vendor the document");
+});
+
+/**
+ * DELIBERATE DEVIATION, recorded (0.1.3): the tools do not offer perPage or
+ * direction, although the operations have them (OMITTED_PARAMETERS in
+ * src/openapi.ts). Harmless only while each stays OPTIONAL - a required one
+ * could never be sent - and while the API's defaults are the ones the tools
+ * are documented to get: 10 rows per page, paging towards older runs.
+ */
+const OMITTED_DEFAULTS = { perPage: 10, direction: "next" };
+
+function omissionProblems(doc) {
+  const problems = [];
+  for (const tool of TOOLS) {
+    const operation = doc.operations.get(tool.operationId);
+    if (!operation) continue; // reported by the first test
+    for (const parameter of operation.parameters.filter((p) => OMITTED_PARAMETERS.has(p.name))) {
+      if (parameter.required) problems.push(`${tool.name}: ${parameter.name} became required`);
+      const expected = OMITTED_DEFAULTS[parameter.name];
+      if (parameter.schema.default !== expected) {
+        problems.push(
+          `${tool.name}: ${parameter.name} default is ${JSON.stringify(parameter.schema.default)}, ` +
+            `the tools promise ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+test("the parameters the tools leave out are exactly perPage and direction", () => {
+  // Leaving out another one is the same kind of decision; this makes it a
+  // visible one.
+  assert.deepEqual([...OMITTED_PARAMETERS].sort(), ["direction", "perPage"]);
+});
+
+test("the left-out parameters are optional, with a page size of 10 - vendored document", () => {
+  assert.deepEqual(omissionProblems(loadDocument()), []);
+});
+
+test("the left-out parameters are optional, with a page size of 10 - live document", async (t) => {
+  const live = await fetchLive();
+  if (!live.ok) {
+    t.skip(`NOT CHECKED - could not reach ${LIVE_URL} (${live.why}).`);
+    return;
+  }
+  assert.deepEqual(
+    omissionProblems(live.doc),
+    [],
+    "upstream changed a parameter the tools leave out. Either offer it again or fix the " +
+      "documented default in src/openapi.ts, the README and this test.",
+  );
 });

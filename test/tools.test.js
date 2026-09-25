@@ -13,6 +13,8 @@ import { createHash } from "node:crypto";
 import { toolList, SERVER_NAME } from "../dist/server.js";
 import { ANNOTATIONS, TOOLS } from "../dist/tools.js";
 import { INSTRUCTIONS } from "../dist/instructions.js";
+import { operationFor } from "../dist/openapi.js";
+import { validateArgs } from "../dist/validate.js";
 
 const digest = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
@@ -28,13 +30,16 @@ const EXPECTED_NAMES = [
   "squally-list-errors",
 ];
 
-/** name -> [operationId, required params, optional params] from the OpenAPI document. */
+/**
+ * name -> [operationId, required params, optional params] from the OpenAPI
+ * document, minus OMITTED_PARAMETERS (perPage, direction - src/openapi.ts).
+ */
 const EXPECTED_PARAMS = {
   "squally-list-projects": ["listProjects", [], []],
   "squally-find-run": [
     "listRuns",
     ["projectId"],
-    ["days", "branch", "sha", "status", "perPage", "cursor", "direction"],
+    ["days", "branch", "sha", "status", "cursor"],
   ],
   "squally-get-run": ["getRun", ["projectId", "runId"], []],
   "squally-debug-failure": [
@@ -46,9 +51,9 @@ const EXPECTED_PARAMS = {
   "squally-list-flaky-tests": [
     "listFlakyTests",
     ["projectId"],
-    ["status", "sort", "search", "page", "perPage"],
+    ["status", "sort", "search", "page"],
   ],
-  "squally-list-errors": ["listErrors", ["projectId"], ["days", "page", "perPage"]],
+  "squally-list-errors": ["listErrors", ["projectId"], ["days", "page"]],
 };
 
 /** The top-level properties of each operation's 200 response schema. */
@@ -164,14 +169,33 @@ test("enums and bounds survive from the document into the input schema", () => {
   assert.deepEqual(runs.days.enum, [7, 30, 90]);
   assert.equal(runs.days.default, 30);
   assert.deepEqual(runs.status.enum, ["passed", "failed"]);
-  assert.deepEqual(runs.direction.enum, ["next", "prev"]);
   assert.equal(runs.sha.pattern, "^[0-9a-fA-F]{4,40}$");
   assert.equal(runs.branch.maxLength, 200);
 
   const flaky = byName["squally-list-flaky-tests"].inputSchema.properties;
   assert.deepEqual(flaky.sort.enum, ["timeLost", "rate", "impact"]);
   assert.equal(flaky.page.minimum, 1);
-  assert.deepEqual(flaky.perPage.enum, [10, 25, 50]);
+});
+
+test("perPage and direction are not offered, and refused when sent anyway", () => {
+  // 0.1.3: a fixed page size of 10 (the API's default) and forward paging
+  // only - OMITTED_PARAMETERS in src/openapi.ts. Refused rather than dropped,
+  // like any argument the model made up; never forwarded to the API.
+  for (const [tool, operationId, extra] of [
+    ["squally-find-run", "listRuns", { perPage: 50 }],
+    ["squally-find-run", "listRuns", { direction: "prev" }],
+    ["squally-list-flaky-tests", "listFlakyTests", { perPage: 50 }],
+    ["squally-list-errors", "listErrors", { perPage: 50 }],
+  ]) {
+    const schema = toolList().find((t) => t.name === tool).inputSchema;
+    for (const name of Object.keys(extra)) assert.equal(name in schema.properties, false, `${tool} offers ${name}`);
+    const result = validateArgs(operationFor(operationId), { projectId: "p", ...extra });
+    assert.equal(result.ok, false, `${tool} accepted ${JSON.stringify(extra)}`);
+  }
+  // The cursor text no longer sends the model to direction=prev.
+  const cursor = toolList().find((t) => t.name === "squally-find-run").inputSchema.properties.cursor;
+  assert.doesNotMatch(cursor.description, /direction/);
+  assert.match(cursor.description, /nextCursor/);
 });
 
 test("output schemas are the operation's 200 response schema", () => {
@@ -236,9 +260,15 @@ test("testName and filePath say NOT to URL-encode - the 24.09. defect", () => {
 test("the whole tool list is digest-pinned - a silent reword fails here", () => {
   // Re-pin deliberately after re-vendoring the OpenAPI document, and say in
   // the commit what changed for clients.
+  //
+  // 0.1.3: a411646bde3a53c7 -> 75c28613460d6cdc. perPage left
+  // squally-find-run, squally-list-flaky-tests and squally-list-errors,
+  // direction left squally-find-run, and squally-find-run's cursor description
+  // no longer mentions direction (OMITTED_PARAMETERS, PARAMETER_DESCRIPTIONS).
+  // Nothing else in the list changed - diffed against the published 0.1.2.
   assert.equal(
     digest(toolList()),
-    "a411646bde3a53c7",
+    "75c28613460d6cdc",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

@@ -10,7 +10,7 @@
 // Built FROM the OpenAPI parameter schema rather than written beside it, for
 // the reason src/openapi.ts gives: two descriptions of one contract drift.
 import { z } from "zod";
-import type { JsonSchema, OpenApiOperation } from "./openapi.js";
+import { toolParameters, type JsonSchema, type OpenApiOperation } from "./openapi.js";
 
 function stringSchema(schema: JsonSchema): z.ZodType {
   const values = schema["enum"];
@@ -67,7 +67,9 @@ function forParameter(schema: JsonSchema): z.ZodType {
  */
 export function validatorFor(operation: OpenApiOperation): z.ZodType {
   const shape: Record<string, z.ZodType> = {};
-  for (const parameter of operation.parameters) {
+  // The parameters the tool offers, not all the operation has: one the tool
+  // leaves out (OMITTED_PARAMETERS) is refused like any invented one.
+  for (const parameter of toolParameters(operation)) {
     const base = forParameter(parameter.schema);
     shape[parameter.name] = parameter.required ? base : base.optional();
   }

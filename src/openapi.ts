@@ -148,7 +148,41 @@ const PARAMETER_DESCRIPTIONS: Record<string, string> = {
     "means a test with no file. Pass it exactly as shown in Squally; do not URL-encode, " +
     "the server does. Needed only when the name exists in several files - the " +
     "ambiguous_test error lists them.",
+  // The document's cursor text sends the caller to direction=prev, which the
+  // tool does not offer (OMITTED_PARAMETERS). An agent told to use a parameter
+  // it cannot send gets an "invented argument" error for following orders.
+  cursor:
+    "Opaque. Pass nextCursor from the previous answer for the next page of older runs. " +
+    "Without a cursor the newest runs come first.",
 };
+
+/**
+ * Parameters of the operation that the tools do NOT offer - a deliberate
+ * deviation from the OpenAPI document, like PARAMETER_DESCRIPTIONS above.
+ *
+ * QUIETER TOOLS (25.09., 0.1.3). Every property of an inputSchema sits in the
+ * model's context on every turn, and a parameter on offer is a parameter the
+ * model spends a decision on. These two answer no question an agent asks:
+ *
+ *   perPage    the page size is FIXED at the API's default, 10 rows, for
+ *              squally-find-run, squally-list-flaky-tests and
+ *              squally-list-errors alike. "More" stays one call away:
+ *              `cursor` (runs) and `page` (flaky tests, errors) are kept.
+ *   direction  paging back towards newer runs is a person's gesture; an agent
+ *              that wants the newest runs calls again without a cursor.
+ *
+ * Left out of the input schema AND the validator (src/validate.ts), so an
+ * agent that sends one is told it made the argument up, and none is ever
+ * forwarded. test/drift.test.js checks that both are still optional upstream
+ * and that the default page size is still 10 - the moment either stops being
+ * true, this deviation stops being harmless.
+ */
+export const OMITTED_PARAMETERS: ReadonlySet<string> = new Set(["perPage", "direction"]);
+
+/** The parameters a tool offers: the operation's, minus OMITTED_PARAMETERS. */
+export function toolParameters(operation: OpenApiOperation): OpenApiParameter[] {
+  return operation.parameters.filter((parameter) => !OMITTED_PARAMETERS.has(parameter.name));
+}
 
 /**
  * The operation's parameters as one JSON Schema object.
@@ -157,14 +191,15 @@ const PARAMETER_DESCRIPTIONS: Record<string, string> = {
  * should be told, not silently ignored - an ignored `?branch=` reads to the
  * agent as "there are no runs on that branch".
  *
- * Descriptions come from the document except for the two in
- * PARAMETER_DESCRIPTIONS - see there for why those cannot.
+ * Descriptions come from the document except for those in
+ * PARAMETER_DESCRIPTIONS - see there for why those cannot - and the parameters
+ * in OMITTED_PARAMETERS are not offered at all.
  */
 export function inputSchemaFor(operation: OpenApiOperation): JsonSchema {
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
 
-  for (const parameter of operation.parameters) {
+  for (const parameter of toolParameters(operation)) {
     const { description, ...rest } = parameter.schema as Record<string, unknown>;
     const override = PARAMETER_DESCRIPTIONS[parameter.name];
     const text = override ?? parameter.description ?? (description as string | undefined);
