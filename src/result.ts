@@ -12,6 +12,7 @@
 // the model to follow.
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ApiFailure, ApiResult, ApiUnreachable } from "./api.js";
+import { describeFailure } from "./diagnostics.js";
 import type { ErrorCode } from "./openapi.js";
 
 /** The one message for a rate limit, which arrives without a body. */
@@ -72,11 +73,16 @@ export function failureResult(
   return { content: [text(lines.join("\n"))], isError: true };
 }
 
+/**
+ * WITH THE CAUSES: "fetch failed" alone names no reason; error.cause says
+ * whether it was DNS, a refused connect, a timeout or a certificate
+ * (src/diagnostics.ts).
+ */
 export function unreachableResult(failure: ApiUnreachable, apiBase: string): CallToolResult {
   return {
     content: [
       text(
-        `Could not reach the Squally API at ${apiBase} (${failure.detail}). ` +
+        `Could not reach the Squally API at ${apiBase} (${describeFailure(failure.detail, failure.causes)}). ` +
           "Check that the host is correct and reachable; if SQUALLY_API_URL is set, it should be " +
           "a base URL such as https://app.squally.dev.",
       ),

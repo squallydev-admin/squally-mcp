@@ -7,6 +7,7 @@
 // bypass. That is the property that makes a client on someone else's machine
 // acceptable at all, and it is why this file has no business logic in it.
 import type { Config } from "./config.js";
+import { errorCauses, type ErrorCause } from "./diagnostics.js";
 import type { OpenApiOperation } from "./openapi.js";
 
 /** Set by the API from 7 days before the key expires (OpenAPI components.headers). */
@@ -32,6 +33,8 @@ export type ApiFailure = {
 export type ApiUnreachable = {
   kind: "unreachable";
   detail: string;
+  /** error.cause and below - where "fetch failed" keeps its reason. */
+  causes: ErrorCause[];
   url: string;
 };
 
@@ -76,6 +79,27 @@ export function buildUrl(
 
 export type Fetcher = typeof fetch;
 
+/**
+ * Removes the key from text a network stack produced. No stack is known to
+ * echo a request header into an error, but these strings go to the model and
+ * to the client's log, and "never the key" should not rest on that.
+ */
+function withoutKey(text: string, apiKey: string): string {
+  return apiKey ? text.split(apiKey).join("[redacted]") : text;
+}
+
+function unreachable(error: unknown, detail: string, url: string, apiKey: string): ApiUnreachable {
+  return {
+    kind: "unreachable",
+    detail: withoutKey(detail, apiKey),
+    causes: errorCauses(error).map((cause) => ({
+      code: cause.code === null ? null : withoutKey(cause.code, apiKey),
+      message: withoutKey(cause.message, apiKey),
+    })),
+    url,
+  };
+}
+
 export async function callOperation(
   config: Config,
   operation: OpenApiOperation,
@@ -95,11 +119,7 @@ export async function callOperation(
       },
     });
   } catch (error) {
-    return {
-      kind: "unreachable",
-      detail: error instanceof Error ? error.message : String(error),
-      url,
-    };
+    return unreachable(error, error instanceof Error ? error.message : String(error), url, config.apiKey);
   }
 
   if (response.ok) {
@@ -110,11 +130,12 @@ export async function callOperation(
       // A 200 that is not JSON is almost always a proxy or a login page
       // wearing our status code - worth saying so rather than reporting a
       // parse error the user cannot place.
-      return {
-        kind: "unreachable",
-        detail: `the response was not JSON (${error instanceof Error ? error.message : String(error)})`,
+      return unreachable(
+        error,
+        `the response was not JSON (${error instanceof Error ? error.message : String(error)})`,
         url,
-      };
+        config.apiKey,
+      );
     }
     return { kind: "success", data, keyExpiresAt: response.headers.get(KEY_EXPIRY_HEADER) };
   }

@@ -8,7 +8,9 @@
 import { readFileSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { resolveConfig } from "./config.js";
+import { environmentLine } from "./diagnostics.js";
 import { createServer } from "./server.js";
+import { systemCaLine, trustSystemCertificates } from "./system-ca.js";
 
 /** Read at runtime rather than imported: npm always ships package.json, and a
  *  JSON import would need an assertion that varies across Node versions. */
@@ -33,8 +35,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Before anything can make a request: a TLS session cached earlier would
+  // not see the added roots (src/system-ca.ts).
+  const systemCa = trustSystemCertificates(process.env);
+
   const server = createServer(resolved.config, v);
   await server.connect(new StdioServerTransport());
+  // Once, before "ready": which Node runs this, and which network variables
+  // it was given - names only (src/diagnostics.ts). A client's environment is
+  // not the user's terminal, and this is the line that shows the difference.
+  console.error(environmentLine(process.env, process.version, process.execPath));
+  console.error(systemCaLine(systemCa));
   console.error(`squally-mcp ${v} ready - ${resolved.config.apiBase}`);
 }
 

@@ -111,6 +111,26 @@ restart the app:
 |---|---|---|
 | `SQUALLY_API_KEY` | yes | Organization read key, `sqly_ro_…`. Missing or an ingest key by mistake, and the server exits with one line saying so. |
 | `SQUALLY_API_URL` | no | Base URL, default `https://app.squally.dev`. A trailing `/` or `/api/v1` is tolerated. Useful against a local Squally: `http://localhost:3000`. |
+| `SQUALLY_USE_SYSTEM_CA` | no | `0` keeps Node's bundled certificates only. |
+
+squally-mcp trusts your operating system's certificate store, like your browser does; set SQUALLY_USE_SYSTEM_CA=0 to use Node's bundled certificates only.
+
+## Troubleshooting
+
+### Claude Desktop
+
+- **The server does not start in time.** The first start through `npx`
+  downloads the package, which can take longer than Claude Desktop's 60-second
+  start-up limit. Install it once beforehand with `npm install -g squally-mcp`;
+  `npx -y squally-mcp` then runs that copy without a download. Update it with
+  the same command.
+- **Where the log is.** The Microsoft Store build of Claude Desktop writes it to
+  `%LOCALAPPDATA%\Claude\logs\mcp-server-squally.log`. Its first lines say which
+  Node runs the server and whether it trusts the system's certificate store;
+  a request that never arrives is logged there with its cause.
+- **Edit the config only while the app is closed.** Quit Claude Desktop
+  completely, including from the system tray, before changing
+  `claude_desktop_config.json`.
 
 ## The tools
 

@@ -16,6 +16,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Config } from "./config.js";
 import { callOperation, type Fetcher } from "./api.js";
+import { describeFailure } from "./diagnostics.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { inputSchemaFor, loadDocument, operationFor, outputSchemaFor } from "./openapi.js";
 import { toolResult } from "./result.js";
@@ -66,6 +67,15 @@ export function createServer(config: Config, version: string, fetcher: Fetcher =
     }
 
     const result = await callOperation(config, operation, validated.args, fetcher);
+    // Also to stderr, which every client keeps as the server's log: whether a
+    // client logs tool results is up to the client; the reason a request never
+    // arrived should be readable there either way. Key-free (api.ts).
+    if (result.kind === "unreachable") {
+      console.error(
+        `squally-mcp: ${tool.name} could not reach ${config.apiBase}: ` +
+          describeFailure(result.detail, result.causes),
+      );
+    }
     return toolResult(result, document.errorCodes, config.apiBase);
   });
 
