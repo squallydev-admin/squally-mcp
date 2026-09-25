@@ -29,8 +29,8 @@ const REQUIRED_OPERATIONS = [
   "listRuns",
   "getRun",
   "getRunTestAttempts",
-  "getTestStatus",
-  "listFlakyTests",
+  "getTestMetrics",
+  "listTests",
   "listErrors",
 ];
 

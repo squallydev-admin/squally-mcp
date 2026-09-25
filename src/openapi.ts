@@ -157,31 +157,46 @@ const PARAMETER_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
- * Parameters of the operation that the tools do NOT offer - a deliberate
+ * Parameters of an operation that its tool does NOT offer - a deliberate
  * deviation from the OpenAPI document, like PARAMETER_DESCRIPTIONS above.
  *
  * QUIETER TOOLS (25.09., 0.1.3). Every property of an inputSchema sits in the
  * model's context on every turn, and a parameter on offer is a parameter the
- * model spends a decision on. These two answer no question an agent asks:
+ * model spends a decision on. These answer no question an agent asks:
  *
  *   perPage    the page size is FIXED at the API's default, 10 rows, for
- *              squally-find-run, squally-list-flaky-tests and
- *              squally-list-errors alike. "More" stays one call away:
- *              `cursor` (runs) and `page` (flaky tests, errors) are kept.
+ *              squally-find-run and squally-list-errors. "More" stays one
+ *              call away: `cursor` (runs) and `page` (errors) are kept.
  *   direction  paging back towards newer runs is a person's gesture; an agent
  *              that wants the newest runs calls again without a cursor.
  *
+ * PER OPERATION SINCE 0.2.0, where it was one set for every tool: listTests
+ * KEEPS perPage (1-100, default 50) - asked for by name in the 0.2.0 brief,
+ * and the one list whose rows an agent may want many of at once, to rank the
+ * whole suite in one answer rather than ten rows at a time.
+ *
  * Left out of the input schema AND the validator (src/validate.ts), so an
  * agent that sends one is told it made the argument up, and none is ever
- * forwarded. test/drift.test.js checks that both are still optional upstream
+ * forwarded. test/drift.test.js checks that each is still optional upstream
  * and that the default page size is still 10 - the moment either stops being
  * true, this deviation stops being harmless.
  */
-export const OMITTED_PARAMETERS: ReadonlySet<string> = new Set(["perPage", "direction"]);
+export const OMITTED_PARAMETERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["listRuns", new Set(["perPage", "direction"])],
+  ["listErrors", new Set(["perPage"])],
+]);
 
-/** The parameters a tool offers: the operation's, minus OMITTED_PARAMETERS. */
+const NOTHING_OMITTED: ReadonlySet<string> = new Set();
+
+/** The parameters `operation`'s tool leaves out - empty for most. */
+export function omittedParameters(operation: OpenApiOperation): ReadonlySet<string> {
+  return OMITTED_PARAMETERS.get(operation.operationId) ?? NOTHING_OMITTED;
+}
+
+/** The parameters a tool offers: the operation's, minus its OMITTED_PARAMETERS. */
 export function toolParameters(operation: OpenApiOperation): OpenApiParameter[] {
-  return operation.parameters.filter((parameter) => !OMITTED_PARAMETERS.has(parameter.name));
+  const omitted = omittedParameters(operation);
+  return operation.parameters.filter((parameter) => !omitted.has(parameter.name));
 }
 
 /**

@@ -1,5 +1,11 @@
 // The seven tools of read-api-mcp-spec §5.1, in that order.
 //
+// 0.2.0 REPLACED TWO OF THEM IN PLACE, with API 1.0.0-beta.2: the verdict
+// engine behind squally-get-test-status and squally-list-flaky-tests was
+// removed from squally-app on 25.09.2026, and squally-get-test-metrics and
+// squally-list-tests read the per-test metrics that replaced it. Still seven:
+// two out, two in. (§5.1 of the spec names the old two until it is updated.)
+//
 // The set is CLOSED (§5.1) and five endpoints are deliberately without a tool
 // (§5.5) - /branches, /errors/{fingerprint}, /tests/{testName}, /overview and
 // /settings. They stay fully supported REST endpoints; "no tool" is a
@@ -42,9 +48,12 @@ export type ToolDefinition = {
    */
   answers: string;
   /**
-   * FOR PEOPLE: "expensive" is the one engine pass (§4.2.2), everything else
-   * is "cheap". The model learns the same from `description` and the server
-   * instructions, not from this.
+   * FOR PEOPLE: "expensive" was the one engine pass (§4.2.2), everything else
+   * is "cheap". Since 0.2.0 no tool is expensive - the engine is gone, and the
+   * tests list is paged in the database. The value stays in the type for the
+   * consumers of `squally-mcp/tools` (the docs), which render both. The model
+   * learns the cost from `description` and the server instructions, not from
+   * this.
    */
   cost: "cheap" | "expensive";
 };
@@ -93,26 +102,32 @@ export const TOOLS: ToolDefinition[] = [
     cost: "cheap",
   },
   {
-    name: "squally-get-test-status",
-    title: "Get a test's status",
-    operationId: "getTestStatus",
+    name: "squally-get-test-metrics",
+    title: "Get one test's metrics",
+    operationId: "getTestMetrics",
     description:
-      "The stored flakiness status and active signals for ONE test. Cheap - one findUnique. " +
-      "Use this when you are asking about a single test; do not reach for " +
-      "squally-list-flaky-tests, which is expensive.",
-    answers: "The stored flakiness status of one test.",
+      "One test's numbers over a period: runs, stability (runs that passed on the first try " +
+      "/ runs), flakyRate (runs that passed only after a retry / runs), failureRate (failed " +
+      "runs / runs), time lost to retries and failures, its last 20 runs and the branches it " +
+      "ran on. Counts completed CI runs of the period, without runs where most of the suite " +
+      "failed at once; local runs never count. There is no verdict - the tool returns the " +
+      "numbers and you judge them. runs = 0 with null rates is a valid answer: no completed " +
+      "CI run of this test in the period. Cheap; for one test use this, not squally-list-tests.",
+    answers: "One test's stability, flaky rate and failure rate over a period.",
     cost: "cheap",
   },
   {
-    name: "squally-list-flaky-tests",
-    title: "List flaky tests",
-    operationId: "listFlakyTests",
+    name: "squally-list-tests",
+    title: "List tests",
+    operationId: "listTests",
     description:
-      "The project's flaky and broken tests, ranked, with the time each has cost (timeLostMs). " +
-      "Expensive - one engine pass over the project's recent runs. For a single test use " +
-      "squally-get-test-status instead.",
-    answers: "The ranked flaky/broken list with time lost.",
-    cost: "expensive",
+      "Every test with a completed CI run in the period, with the same numbers per test as " +
+      "squally-get-test-metrics - runs, stability, flakyRate, failureRate, time lost - ranked " +
+      "worst first by the chosen sort (default: lowest stability). There is no verdict and no " +
+      "status - the tool labels no test; you judge the numbers. Moderate - two queries over " +
+      "the period, paged; for a single test use squally-get-test-metrics.",
+    answers: "Every test with a CI run in the period, ranked by stability, flaky rate or failures.",
+    cost: "cheap",
   },
   {
     name: "squally-list-errors",

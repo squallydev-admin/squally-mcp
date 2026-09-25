@@ -16,6 +16,7 @@ import {
   inputSchemaFor,
   loadDocument,
   OMITTED_PARAMETERS,
+  omittedParameters,
   outputSchemaFor,
   parseDocument,
 } from "../dist/openapi.js";
@@ -23,6 +24,58 @@ import { TOOLS } from "../dist/tools.js";
 
 const LIVE_URL = "https://app.squally.dev/openapi/v1.json";
 const TIMEOUT_MS = 10_000;
+
+/**
+ * SemVer precedence of two API versions ("1.0.0-beta.2"): negative when `a`
+ * is older. Null when either is not a version this can order.
+ */
+function compareVersions(a, b) {
+  const parse = (v) => {
+    const m = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(v);
+    return m ? { core: [+m[1], +m[2], +m[3]], pre: m[4] ? m[4].split(".") : [] } : null;
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return null;
+  for (let i = 0; i < 3; i++) if (x.core[i] !== y.core[i]) return x.core[i] - y.core[i];
+  // A release outranks its prereleases; otherwise identifier by identifier,
+  // numbers numerically and below words, and the shorter list first.
+  if (x.pre.length === 0 || y.pre.length === 0) return y.pre.length - x.pre.length;
+  for (let i = 0; i < Math.min(x.pre.length, y.pre.length); i++) {
+    const [p, q] = [x.pre[i], y.pre[i]];
+    if (p === q) continue;
+    const [pn, qn] = [/^\d+$/.test(p), /^\d+$/.test(q)];
+    if (pn && qn) return +p - +q;
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return x.pre.length - y.pre.length;
+}
+
+/**
+ * A skip reason while the live API is OLDER than the vendored document - or
+ * null when the comparison should run.
+ *
+ * ADDED FOR 0.2.0. This package is released together with an API version
+ * (1.0.0-beta.2 removed the verdict engine), and between the package's commit
+ * and the deploy, the live document is the previous version: every comparison
+ * below would report the whole release as drift. That is not drift - the
+ * package is ahead of a deploy, not behind the API - and a suite that is red
+ * for it teaches everyone to ignore it. So the comparisons wait, LOUDLY, until
+ * the live API serves at least the vendored version. A live API that is AHEAD
+ * (or the same version, amended) is compared as always: that is the drift this
+ * file exists to catch.
+ */
+function liveIsBehind(live) {
+  const vendored = loadDocument().version;
+  const order = compareVersions(live.version, vendored);
+  if (order === null || order >= 0) return null;
+  return (
+    `NOT CHECKED - ${LIVE_URL} serves API ${live.version}, older than the vendored ` +
+    `${vendored}: this package is ahead of a deploy that has not happened yet. ` +
+    "Re-run once the live API serves the vendored version."
+  );
+}
 
 async function fetchLive() {
   try {
@@ -44,6 +97,11 @@ test("the vendored OpenAPI document still matches the live one", async (t) => {
       `NOT CHECKED - could not reach ${LIVE_URL} (${live.why}). ` +
         "The vendored document may be out of date; re-run with a network connection.",
     );
+    return;
+  }
+  const behind = liveIsBehind(live.doc);
+  if (behind) {
+    t.skip(behind);
     return;
   }
 
@@ -112,6 +170,11 @@ test("the schemas the agent sees are still the ones upstream publishes", async (
     );
     return;
   }
+  const behind = liveIsBehind(live.doc);
+  if (behind) {
+    t.skip(behind);
+    return;
+  }
 
   const vendored = loadDocument();
   const problems = [];
@@ -157,6 +220,11 @@ test("the live document's error codes are still the ones the results rely on", a
     t.skip(`NOT CHECKED - could not reach ${LIVE_URL} (${live.why}).`);
     return;
   }
+  const behind = liveIsBehind(live.doc);
+  if (behind) {
+    t.skip(behind);
+    return;
+  }
 
   const missing = [...loadDocument().errorCodes.keys()].filter(
     (code) => !live.doc.errorCodes.has(code),
@@ -165,11 +233,13 @@ test("the live document's error codes are still the ones the results rely on", a
 });
 
 /**
- * DELIBERATE DEVIATION, recorded (0.1.3): the tools do not offer perPage or
- * direction, although the operations have them (OMITTED_PARAMETERS in
- * src/openapi.ts). Harmless only while each stays OPTIONAL - a required one
- * could never be sent - and while the API's defaults are the ones the tools
- * are documented to get: 10 rows per page, paging towards older runs.
+ * DELIBERATE DEVIATION, recorded (0.1.3): squally-find-run offers neither
+ * perPage nor direction and squally-list-errors no perPage, although the
+ * operations have them (OMITTED_PARAMETERS in src/openapi.ts, per operation
+ * since 0.2.0 - squally-list-tests keeps its perPage). Harmless only while
+ * each stays OPTIONAL - a required one could never be sent - and while the
+ * API's defaults are the ones the tools are documented to get: 10 rows per
+ * page, paging towards older runs.
  */
 const OMITTED_DEFAULTS = { perPage: 10, direction: "next" };
 
@@ -178,7 +248,8 @@ function omissionProblems(doc) {
   for (const tool of TOOLS) {
     const operation = doc.operations.get(tool.operationId);
     if (!operation) continue; // reported by the first test
-    for (const parameter of operation.parameters.filter((p) => OMITTED_PARAMETERS.has(p.name))) {
+    const omitted = omittedParameters(operation);
+    for (const parameter of operation.parameters.filter((p) => omitted.has(p.name))) {
       if (parameter.required) problems.push(`${tool.name}: ${parameter.name} became required`);
       const expected = OMITTED_DEFAULTS[parameter.name];
       if (parameter.schema.default !== expected) {
@@ -192,10 +263,25 @@ function omissionProblems(doc) {
   return problems;
 }
 
-test("the parameters the tools leave out are exactly perPage and direction", () => {
+test("the parameters the tools leave out are exactly these, per operation", () => {
   // Leaving out another one is the same kind of decision; this makes it a
   // visible one.
-  assert.deepEqual([...OMITTED_PARAMETERS].sort(), ["direction", "perPage"]);
+  assert.deepEqual(
+    Object.fromEntries([...OMITTED_PARAMETERS].map(([id, names]) => [id, [...names].sort()])),
+    { listRuns: ["direction", "perPage"], listErrors: ["perPage"] },
+  );
+});
+
+test("API versions order the way the release gate above needs", () => {
+  // The gate skips the live comparisons only while live < vendored; getting
+  // this order wrong would either hide real drift or fail every release.
+  assert.ok(compareVersions("1.0.0-beta", "1.0.0-beta.2") < 0);
+  assert.ok(compareVersions("1.0.0-beta.2", "1.0.0-beta.10") < 0);
+  assert.ok(compareVersions("1.0.0-beta.2", "1.0.0") < 0);
+  assert.ok(compareVersions("1.0.0-alpha.9", "1.0.0-beta") < 0);
+  assert.equal(compareVersions("1.0.0-beta.2", "1.0.0-beta.2"), 0);
+  assert.ok(compareVersions("1.1.0", "1.0.9") > 0);
+  assert.equal(compareVersions("unknown", "1.0.0"), null);
 });
 
 test("the left-out parameters are optional, with a page size of 10 - vendored document", () => {

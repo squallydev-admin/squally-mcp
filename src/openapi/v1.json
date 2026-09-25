@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta",
+    "version": "1.0.0-beta.2",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Settings → API keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -27,11 +27,7 @@
     },
     {
       "name": "Tests",
-      "description": "One test by name: its stored flakiness verdict and its history across runs."
-    },
-    {
-      "name": "Flakiness",
-      "description": "Flaky and broken tests as the flakiness engine judges them."
+      "description": "Every test's metrics over a period, and one test by name: its metrics and its history across runs."
     },
     {
       "name": "Errors",
@@ -61,7 +57,7 @@
       "code": "invalid_period",
       "status": 400,
       "when": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
-      "action": "Use days=7, 30 or 90, within the plan's retention; do not retry.",
+      "action": "Use days=7, 14, 30 or 90, within the plan's retention; do not retry.",
       "hasBody": true
     },
     {
@@ -364,6 +360,7 @@
               "type": "integer",
               "enum": [
                 7,
+                14,
                 30,
                 90
               ],
@@ -482,10 +479,10 @@
                       "durationMs": 515000,
                       "counts": {
                         "total": 412,
-                        "passed": 409,
+                        "passed": 408,
                         "failed": 0,
                         "skipped": 3,
-                        "recovered": 1
+                        "flaky": 1
                       },
                       "shards": {
                         "received": 2,
@@ -508,7 +505,7 @@
                         "passed": 401,
                         "failed": 2,
                         "skipped": 2,
-                        "recovered": 0
+                        "flaky": 0
                       },
                       "shards": null
                     }
@@ -827,10 +824,10 @@
                   },
                   "counts": {
                     "total": 412,
-                    "passed": 409,
+                    "passed": 408,
                     "failed": 0,
                     "skipped": 3,
-                    "recovered": 1
+                    "flaky": 1
                   },
                   "tests": [
                     {
@@ -1148,7 +1145,7 @@
                           }
                         }
                       ],
-                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed (the test is flaky rather than consistently broken).\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nStatus from the flakiness engine: flaky (signals: Retry rate). Treat this as evidence to weigh, not as a verdict.",
+                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed (the test is flaky rather than consistently broken).\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 14 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
@@ -1634,13 +1631,13 @@
         }
       }
     },
-    "/projects/{projectId}/flaky": {
+    "/projects/{projectId}/tests": {
       "get": {
-        "operationId": "listFlakyTests",
-        "summary": "List flaky tests",
-        "description": "List flaky and broken tests (expensive). Flaky and broken tests as the flakiness engine judges them over its fixed 14-day window, ranked by time lost. THE EXPENSIVE ENDPOINT: it runs the engine live on every call - call it once per question, not in a loop, and use the test status route for a single test.",
+        "operationId": "listTests",
+        "summary": "List tests",
+        "description": "Every test with a CI run in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts completed CI runs only, without mass-failure runs, on every branch unless branch names one (see population). Moderate: two queries over the period's CI results, paged in the database; use the metrics route for one test.",
         "tags": [
-          "Flakiness"
+          "Tests"
         ],
         "parameters": [
           {
@@ -1653,31 +1650,19 @@
             }
           },
           {
-            "name": "status",
+            "name": "days",
             "in": "query",
             "required": false,
-            "description": "Only tests with this verdict.",
+            "description": "The period, in days, ending now. Must not exceed the plan's retention (Standard 60, Pro 90 days); a longer period is refused with 400 invalid_period rather than answered with less data.",
             "schema": {
-              "type": "string",
+              "type": "integer",
               "enum": [
-                "flaky",
-                "broken"
-              ]
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "description": "Ranking: time lost (default), flake rate, or impact on the stable branch.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "timeLost",
-                "rate",
-                "impact"
+                7,
+                14,
+                30,
+                90
               ],
-              "default": "timeLost"
+              "default": 14
             }
           },
           {
@@ -1689,6 +1674,45 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only runs on this branch, the name exactly. Every branch when absent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "required": false,
+            "description": "Only tests of this Playwright project - the items' browser field, exactly (e.g. chromium). Every test when absent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Ranking, the worst first: stability (the default) lowest first; flakyRate, failureRate, runs and timeLost highest first. Ties go to the most runs (for runs: the lowest stability), then to the test name and file. A rate with nothing to divide by (null) sorts after every number.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stability",
+                "flakyRate",
+                "failureRate",
+                "runs",
+                "timeLost"
+              ],
+              "default": "stability"
             }
           },
           {
@@ -1706,15 +1730,12 @@
             "name": "perPage",
             "in": "query",
             "required": false,
-            "description": "Rows per page.",
+            "description": "Rows per page, 1 to 100.",
             "schema": {
               "type": "integer",
-              "enum": [
-                10,
-                25,
-                50
-              ],
-              "default": 10
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
             }
           }
         ],
@@ -1729,76 +1750,272 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FlakyResponse"
+                  "$ref": "#/components/schemas/TestsResponse"
                 },
                 "example": {
                   "project": {
                     "id": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
                     "name": "storefront-web"
                   },
-                  "windowDays": 14,
-                  "sort": "timeLost",
-                  "page": {
-                    "page": 1,
-                    "perPage": 10,
-                    "total": 3,
-                    "pageCount": 1
-                  },
-                  "tests": [
+                  "population": "ci_completed_not_excluded",
+                  "days": 14,
+                  "since": "2026-09-10T08:00:00.000Z",
+                  "until": "2026-09-24T08:00:00.000Z",
+                  "branch": null,
+                  "browser": null,
+                  "sort": "stability",
+                  "page": 1,
+                  "perPage": 3,
+                  "total": 409,
+                  "pageCount": 137,
+                  "items": [
                     {
                       "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
                       "filePath": "tests/checkout.spec.ts",
-                      "status": "flaky",
-                      "statusReason": "retry_rate",
-                      "alsoActive": [
-                        "same_sha_flip"
+                      "browser": "chromium",
+                      "runs": 8,
+                      "stableRuns": 4,
+                      "flakyRuns": 4,
+                      "failedRuns": 0,
+                      "stability": 0.5,
+                      "flakyRate": 0.5,
+                      "failureRate": 0,
+                      "timeLostMs": 7361,
+                      "recentResults": [
+                        {
+                          "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
+                          "runNumber": 1261,
+                          "startedAt": "2026-09-12T07:30:41.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "c2e7a940-5d1b-4f8e-9a36-0b4d7e1c5f92",
+                          "runNumber": 1264,
+                          "startedAt": "2026-09-14T15:12:09.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "flaky"
+                        },
+                        {
+                          "runId": "a3f19c62-0e7d-4b85-9c24-6d1e8b3f7a09",
+                          "runNumber": 1266,
+                          "startedAt": "2026-09-15T07:31:03.000Z",
+                          "branch": "main",
+                          "result": "flaky"
+                        },
+                        {
+                          "runId": "d07b4e95-6a2c-4e13-8f5d-2b9c1a7e6f30",
+                          "runNumber": 1270,
+                          "startedAt": "2026-09-17T07:29:58.000Z",
+                          "branch": "main",
+                          "result": "flaky"
+                        },
+                        {
+                          "runId": "6b1f8d23-9e4a-4c07-b5d2-3a8e0f6c1d74",
+                          "runNumber": 1273,
+                          "startedAt": "2026-09-18T11:47:35.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "8f6a3d21-4c9e-4a7b-b052-e1d7c3a9f864",
+                          "runNumber": 1277,
+                          "startedAt": "2026-09-20T07:32:16.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
+                          "runNumber": 1283,
+                          "startedAt": "2026-09-23T16:05:40.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
+                          "runNumber": 1284,
+                          "startedAt": "2026-09-24T07:31:12.000Z",
+                          "branch": "main",
+                          "result": "flaky"
+                        }
                       ],
-                      "timeLostMs": 1968000,
-                      "flakeScore": 0.42,
-                      "flipRate": 0.31,
-                      "failureRate": 0.18,
-                      "runsConsidered": 38,
-                      "runsInWindow": 44,
-                      "failureStreak": 0,
-                      "lastSeenAt": "2026-09-24T07:34:05.000Z",
-                      "lastRun": {
-                        "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
-                        "runNumber": 1284,
-                        "status": "passed",
-                        "startedAt": "2026-09-24T07:31:12.000Z"
+                      "branches": [
+                        "feature/saved-carts",
+                        "main"
+                      ],
+                      "topBranch": {
+                        "branch": "main",
+                        "kind": "retries",
+                        "count": 3
                       }
                     },
                     {
                       "testName": "chromium > search.spec.ts > Search > filters by date",
                       "filePath": "tests/search.spec.ts",
-                      "status": "broken",
-                      "statusReason": "consecutive_failures",
-                      "alsoActive": [
-                        "failure_rate_broken"
+                      "browser": "chromium",
+                      "runs": 8,
+                      "stableRuns": 5,
+                      "flakyRuns": 0,
+                      "failedRuns": 3,
+                      "stability": 0.625,
+                      "flakyRate": 0,
+                      "failureRate": 0.375,
+                      "timeLostMs": 14308,
+                      "recentResults": [
+                        {
+                          "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
+                          "runNumber": 1261,
+                          "startedAt": "2026-09-12T07:30:41.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "c2e7a940-5d1b-4f8e-9a36-0b4d7e1c5f92",
+                          "runNumber": 1264,
+                          "startedAt": "2026-09-14T15:12:09.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "a3f19c62-0e7d-4b85-9c24-6d1e8b3f7a09",
+                          "runNumber": 1266,
+                          "startedAt": "2026-09-15T07:31:03.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "d07b4e95-6a2c-4e13-8f5d-2b9c1a7e6f30",
+                          "runNumber": 1270,
+                          "startedAt": "2026-09-17T07:29:58.000Z",
+                          "branch": "main",
+                          "result": "failed"
+                        },
+                        {
+                          "runId": "6b1f8d23-9e4a-4c07-b5d2-3a8e0f6c1d74",
+                          "runNumber": 1273,
+                          "startedAt": "2026-09-18T11:47:35.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "8f6a3d21-4c9e-4a7b-b052-e1d7c3a9f864",
+                          "runNumber": 1277,
+                          "startedAt": "2026-09-20T07:32:16.000Z",
+                          "branch": "main",
+                          "result": "failed"
+                        },
+                        {
+                          "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
+                          "runNumber": 1283,
+                          "startedAt": "2026-09-23T16:05:40.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "failed"
+                        },
+                        {
+                          "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
+                          "runNumber": 1284,
+                          "startedAt": "2026-09-24T07:31:12.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        }
                       ],
-                      "timeLostMs": 540000,
-                      "flakeScore": 0.9,
-                      "flipRate": 0.05,
-                      "failureRate": 1,
-                      "runsConsidered": 12,
-                      "runsInWindow": 12,
-                      "failureStreak": 12,
-                      "lastSeenAt": "2026-09-23T16:09:31.000Z",
-                      "lastRun": {
-                        "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
-                        "runNumber": 1283,
-                        "status": "failed",
-                        "startedAt": "2026-09-23T16:05:40.000Z"
+                      "branches": [
+                        "feature/saved-carts",
+                        "main"
+                      ],
+                      "topBranch": {
+                        "branch": "main",
+                        "kind": "failures",
+                        "count": 2
+                      }
+                    },
+                    {
+                      "testName": "chromium > auth.spec.ts > Login > remembers the device",
+                      "filePath": "tests/auth.spec.ts",
+                      "browser": "chromium",
+                      "runs": 8,
+                      "stableRuns": 7,
+                      "flakyRuns": 1,
+                      "failedRuns": 0,
+                      "stability": 0.875,
+                      "flakyRate": 0.125,
+                      "failureRate": 0,
+                      "timeLostMs": 3071,
+                      "recentResults": [
+                        {
+                          "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
+                          "runNumber": 1261,
+                          "startedAt": "2026-09-12T07:30:41.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "c2e7a940-5d1b-4f8e-9a36-0b4d7e1c5f92",
+                          "runNumber": 1264,
+                          "startedAt": "2026-09-14T15:12:09.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "flaky"
+                        },
+                        {
+                          "runId": "a3f19c62-0e7d-4b85-9c24-6d1e8b3f7a09",
+                          "runNumber": 1266,
+                          "startedAt": "2026-09-15T07:31:03.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "d07b4e95-6a2c-4e13-8f5d-2b9c1a7e6f30",
+                          "runNumber": 1270,
+                          "startedAt": "2026-09-17T07:29:58.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "6b1f8d23-9e4a-4c07-b5d2-3a8e0f6c1d74",
+                          "runNumber": 1273,
+                          "startedAt": "2026-09-18T11:47:35.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "8f6a3d21-4c9e-4a7b-b052-e1d7c3a9f864",
+                          "runNumber": 1277,
+                          "startedAt": "2026-09-20T07:32:16.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
+                          "runNumber": 1283,
+                          "startedAt": "2026-09-23T16:05:40.000Z",
+                          "branch": "feature/saved-carts",
+                          "result": "stable"
+                        },
+                        {
+                          "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
+                          "runNumber": 1284,
+                          "startedAt": "2026-09-24T07:31:12.000Z",
+                          "branch": "main",
+                          "result": "stable"
+                        }
+                      ],
+                      "branches": [
+                        "feature/saved-carts",
+                        "main"
+                      ],
+                      "topBranch": {
+                        "branch": "feature/saved-carts",
+                        "kind": "retries",
+                        "count": 1
                       }
                     }
-                  ],
-                  "gatheringDataCount": 6
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "Error: invalid_parameter",
+            "description": "Error: invalid_parameter, invalid_period",
             "content": {
               "application/json": {
                 "schema": {
@@ -1811,7 +2028,8 @@
                     "code": {
                       "type": "string",
                       "enum": [
-                        "invalid_parameter"
+                        "invalid_parameter",
+                        "invalid_period"
                       ],
                       "description": "Stable slug - match on this, not on the sentence."
                     }
@@ -1827,6 +2045,13 @@
                     "value": {
                       "error": "sha must be 4 to 40 hexadecimal characters (a commit SHA or a prefix of one).",
                       "code": "invalid_parameter"
+                    }
+                  },
+                  "invalid_period": {
+                    "summary": "invalid_period",
+                    "value": {
+                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "code": "invalid_period"
                     }
                   }
                 }
@@ -2015,11 +2240,11 @@
         }
       }
     },
-    "/projects/{projectId}/tests/{testName}/status": {
+    "/projects/{projectId}/tests/{testName}/metrics": {
       "get": {
-        "operationId": "getTestStatus",
-        "summary": "Get test status",
-        "description": "Get one test's flakiness verdict (cheap). The stored verdict for one test - status, active signals, labels - as of the last ingest. THE CHEAP ONE: a single lookup, no engine pass; prefer it to /flaky when the question is about one test.",
+        "operationId": "getTestMetrics",
+        "summary": "Get test metrics",
+        "description": "One test's metrics over the period: the fields of its /tests row, flat, beside the same period. A test with results but no CI run in the period answers zeros and null rates rather than 404. Cheap: the list's queries, narrowed to one test; prefer it to /tests when the question is about one test.",
         "tags": [
           "Tests"
         ],
@@ -2050,6 +2275,33 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "The period, in days, ending now. Must not exceed the plan's retention (Standard 60, Pro 90 days); a longer period is refused with 400 invalid_period rather than answered with less data.",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                7,
+                14,
+                30,
+                90
+              ],
+              "default": 14
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only runs on this branch, the name exactly. Every branch when absent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
           }
         ],
         "responses": {
@@ -2063,38 +2315,102 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V4StatusResponse"
+                  "$ref": "#/components/schemas/TestMetricsResponse"
                 },
                 "example": {
                   "project": {
                     "id": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
                     "name": "storefront-web"
                   },
-                  "test": {
-                    "name": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
-                    "filePath": "tests/checkout.spec.ts"
-                  },
-                  "status": "flaky",
-                  "awaitingFirstWrite": false,
-                  "activeSignals": [
+                  "population": "ci_completed_not_excluded",
+                  "days": 14,
+                  "since": "2026-09-10T08:00:00.000Z",
+                  "until": "2026-09-24T08:00:00.000Z",
+                  "branch": null,
+                  "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                  "filePath": "tests/checkout.spec.ts",
+                  "browser": "chromium",
+                  "runs": 8,
+                  "stableRuns": 4,
+                  "flakyRuns": 4,
+                  "failedRuns": 0,
+                  "stability": 0.5,
+                  "flakyRate": 0.5,
+                  "failureRate": 0,
+                  "timeLostMs": 7361,
+                  "recentResults": [
                     {
-                      "signal": "retry_rate",
-                      "label": "Retry rate"
+                      "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
+                      "runNumber": 1261,
+                      "startedAt": "2026-09-12T07:30:41.000Z",
+                      "branch": "main",
+                      "result": "stable"
                     },
                     {
-                      "signal": "same_sha_flip",
-                      "label": "Same-code flip"
+                      "runId": "c2e7a940-5d1b-4f8e-9a36-0b4d7e1c5f92",
+                      "runNumber": 1264,
+                      "startedAt": "2026-09-14T15:12:09.000Z",
+                      "branch": "feature/saved-carts",
+                      "result": "flaky"
+                    },
+                    {
+                      "runId": "a3f19c62-0e7d-4b85-9c24-6d1e8b3f7a09",
+                      "runNumber": 1266,
+                      "startedAt": "2026-09-15T07:31:03.000Z",
+                      "branch": "main",
+                      "result": "flaky"
+                    },
+                    {
+                      "runId": "d07b4e95-6a2c-4e13-8f5d-2b9c1a7e6f30",
+                      "runNumber": 1270,
+                      "startedAt": "2026-09-17T07:29:58.000Z",
+                      "branch": "main",
+                      "result": "flaky"
+                    },
+                    {
+                      "runId": "6b1f8d23-9e4a-4c07-b5d2-3a8e0f6c1d74",
+                      "runNumber": 1273,
+                      "startedAt": "2026-09-18T11:47:35.000Z",
+                      "branch": "feature/saved-carts",
+                      "result": "stable"
+                    },
+                    {
+                      "runId": "8f6a3d21-4c9e-4a7b-b052-e1d7c3a9f864",
+                      "runNumber": 1277,
+                      "startedAt": "2026-09-20T07:32:16.000Z",
+                      "branch": "main",
+                      "result": "stable"
+                    },
+                    {
+                      "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
+                      "runNumber": 1283,
+                      "startedAt": "2026-09-23T16:05:40.000Z",
+                      "branch": "feature/saved-carts",
+                      "result": "stable"
+                    },
+                    {
+                      "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
+                      "runNumber": 1284,
+                      "startedAt": "2026-09-24T07:31:12.000Z",
+                      "branch": "main",
+                      "result": "flaky"
                     }
                   ],
-                  "labels": [
-                    "retries"
-                  ]
+                  "branches": [
+                    "feature/saved-carts",
+                    "main"
+                  ],
+                  "topBranch": {
+                    "branch": "main",
+                    "kind": "retries",
+                    "count": 3
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Error: ambiguous_test",
+            "description": "Error: ambiguous_test, invalid_parameter, invalid_period",
             "content": {
               "application/json": {
                 "schema": {
@@ -2107,7 +2423,9 @@
                     "code": {
                       "type": "string",
                       "enum": [
-                        "ambiguous_test"
+                        "ambiguous_test",
+                        "invalid_parameter",
+                        "invalid_period"
                       ],
                       "description": "Stable slug - match on this, not on the sentence."
                     }
@@ -2123,6 +2441,20 @@
                     "value": {
                       "error": "Several tests have this name. Pass ?filePath= with one of: tests/a.spec.ts, tests/b.spec.ts.",
                       "code": "ambiguous_test"
+                    }
+                  },
+                  "invalid_parameter": {
+                    "summary": "invalid_parameter",
+                    "value": {
+                      "error": "sha must be 4 to 40 hexadecimal characters (a commit SHA or a prefix of one).",
+                      "code": "invalid_parameter"
+                    }
+                  },
+                  "invalid_period": {
+                    "summary": "invalid_period",
+                    "value": {
+                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "code": "invalid_period"
                     }
                   }
                 }
@@ -2364,6 +2696,7 @@
               "type": "integer",
               "enum": [
                 7,
+                14,
                 30,
                 90
               ],
@@ -2687,6 +3020,7 @@
               "type": "integer",
               "enum": [
                 7,
+                14,
                 30,
                 90
               ],
@@ -3036,6 +3370,7 @@
               "type": "integer",
               "enum": [
                 7,
+                14,
                 30,
                 90
               ],
@@ -3338,7 +3673,7 @@
       "get": {
         "operationId": "getOverview",
         "summary": "Get dashboard figures",
-        "description": "The dashboard for a period: last run, stability, time lost, slowest tests, time sinks, recent runs. Moderately expensive: its flaky count rides on one engine pass.",
+        "description": "The dashboard for a period: last run, suite stability, time lost, the two test-metric tiles (testMetrics), slowest tests, time sinks, recent runs. Suite stability and testMetrics count completed CI runs only. Moderate: one pass over the period's runs and one count over its CI results.",
         "tags": [
           "Project"
         ],
@@ -3361,6 +3696,7 @@
               "type": "integer",
               "enum": [
                 7,
+                14,
                 30,
                 90
               ],
@@ -3415,13 +3751,13 @@
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "total": 412,
-                    "passed": 409,
+                    "passed": 408,
                     "failed": 0,
                     "isFallbackBranch": false
                   },
-                  "runsInWindow": 57,
+                  "runsInWindow": 11,
                   "suiteSize": 412,
-                  "windowStability": 91.2,
+                  "windowStability": 99,
                   "timeLost": {
                     "lostMs": 5112000,
                     "lostPercent": 2.4,
@@ -3430,11 +3766,15 @@
                   },
                   "failingTests": {
                     "failing": 1,
-                    "withVerdict": 3,
                     "testsRun": 412
                   },
-                  "flakyOrBrokenCount": 3,
-                  "flakyWindowDays": 14,
+                  "testMetrics": {
+                    "population": "ci_completed_not_excluded",
+                    "days": 30,
+                    "testsWithRetries": 7,
+                    "failingTests": 2,
+                    "ciTests": 409
+                  },
                   "slowestTests": [
                     {
                       "testName": "chromium > checkout.spec.ts > Checkout > pays with a saved card",
@@ -3452,14 +3792,14 @@
                   ],
                   "runsSeries": [
                     {
-                      "runNumber": 1282,
-                      "passed": 410,
-                      "failed": 0,
+                      "runNumber": 1277,
+                      "passed": 408,
+                      "failed": 1,
                       "durationMs": 498000
                     },
                     {
                       "runNumber": 1284,
-                      "passed": 409,
+                      "passed": 408,
                       "failed": 0,
                       "durationMs": 515000
                     }
@@ -3737,8 +4077,7 @@
                     "slack": {
                       "configured": true,
                       "events": [
-                        "flaky_detected",
-                        "broken_detected"
+                        "run_summary"
                       ]
                     },
                     "github": {
@@ -3927,6 +4266,57 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/flaky": {
+      "get": {
+        "operationId": "listFlakyTests",
+        "summary": "List flaky tests (deprecated)",
+        "description": "Deprecated in 1.0.0-beta.2 and removed in the next release: call GET /projects/{projectId}/tests. Answers 301 Moved Permanently to it, carrying the query over - sort=rate becomes sort=flakyRate, sort=timeLost stays, sort=impact and status are dropped, everything else passes through unchanged. The redirect checks no key; the list it points to does.",
+        "tags": [
+          "Tests"
+        ],
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "description": "A project id from GET /projects.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "301": {
+            "description": "Moved permanently to /projects/{projectId}/tests. No body.",
+            "headers": {
+              "Location": {
+                "description": "The absolute URL of /projects/{projectId}/tests, with the query carried over.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Deprecation": {
+                "description": "When the deprecation took effect, as @ and a Unix time (RFC 9745).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "/projects/{projectId}/tests as rel=\"successor-version\".",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
           }
         }
       }
@@ -4129,8 +4519,9 @@
                     "skipped": {
                       "type": "integer"
                     },
-                    "recovered": {
-                      "type": "integer"
+                    "flaky": {
+                      "type": "integer",
+                      "description": "Tests whose final attempt passed after at least one retry in this run. Not counted in passed: total = passed + failed + skipped + flaky."
                     }
                   },
                   "required": [
@@ -4138,7 +4529,7 @@
                     "passed",
                     "failed",
                     "skipped",
-                    "recovered"
+                    "flaky"
                   ]
                 },
                 "shards": {
@@ -4458,8 +4849,9 @@
               "skipped": {
                 "type": "integer"
               },
-              "recovered": {
-                "type": "integer"
+              "flaky": {
+                "type": "integer",
+                "description": "Tests whose final attempt passed after at least one retry in this run. Not counted in passed: total = passed + failed + skipped + flaky."
               }
             },
             "required": [
@@ -4467,7 +4859,7 @@
               "passed",
               "failed",
               "skipped",
-              "recovered"
+              "flaky"
             ]
           },
           "tests": {
@@ -4860,7 +5252,7 @@
           "branches"
         ]
       },
-      "FlakyResponse": {
+      "TestsResponse": {
         "type": "object",
         "properties": {
           "project": {
@@ -4878,43 +5270,78 @@
               "name"
             ]
           },
-          "windowDays": {
+          "population": {
+            "type": "string",
+            "const": "ci_completed_not_excluded",
+            "description": "Which runs every number counts: completed CI runs (reported with a CI provider) started inside the period, without the runs excluded as a mass failure (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count."
+          },
+          "days": {
             "type": "integer",
-            "description": "The engine's fixed window in days. The flaky list takes no other period."
+            "description": "The period in days, ending at until."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the period: until minus days. ISO-8601."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the period: when the numbers were computed. ISO-8601."
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The branch filter applied; null for every branch."
+          },
+          "browser": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The browser filter applied; null for every test."
           },
           "sort": {
-            "type": "string"
-          },
-          "page": {
-            "type": "object",
-            "properties": {
-              "page": {
-                "type": "integer"
-              },
-              "perPage": {
-                "type": "integer"
-              },
-              "total": {
-                "type": "integer"
-              },
-              "pageCount": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "page",
-              "perPage",
-              "total",
-              "pageCount"
+            "type": "string",
+            "enum": [
+              "stability",
+              "flakyRate",
+              "failureRate",
+              "runs",
+              "timeLost"
             ]
           },
-          "tests": {
+          "page": {
+            "type": "integer"
+          },
+          "perPage": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Tests matching the query across all pages: every test with at least one CI run in the period, narrowed by search, branch and browser."
+          },
+          "pageCount": {
+            "type": "integer"
+          },
+          "items": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
                 "testName": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The stored name: Playwright's title path, the Playwright project first when there is one. The identity other test routes take."
                 },
                 "filePath": {
                   "anyOf": [
@@ -4926,19 +5353,34 @@
                     }
                   ]
                 },
-                "status": {
-                  "type": "string"
+                "browser": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The Playwright project the name starts with (chromium in \"chromium > cart.spec.ts > adds an item\") - null when the name has none, i.e. when its second part is not the test's own file."
                 },
-                "statusReason": {
-                  "type": "string"
+                "runs": {
+                  "type": "integer",
+                  "description": "CI runs in the period in which the test has a final attempt that did not skip: stableRuns + flakyRuns + failedRuns."
                 },
-                "alsoActive": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                "stableRuns": {
+                  "type": "integer",
+                  "description": "Of runs, those whose final attempt passed on the first try."
                 },
-                "timeLostMs": {
+                "flakyRuns": {
+                  "type": "integer",
+                  "description": "Of runs, those whose final attempt passed after at least one retry."
+                },
+                "failedRuns": {
+                  "type": "integer",
+                  "description": "Of runs, those whose final attempt failed."
+                },
+                "stability": {
                   "anyOf": [
                     {
                       "type": "number"
@@ -4947,13 +5389,18 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Time lost to failed and retried attempts in the window, ms (approximation: wasted attempts x the final attempt duration). A failed run wastes every attempt it made, a run rescued by a retry wastes the attempts before it, and a run that passed first time wastes none - so 0 is a real measurement. Computed for every listed test; null is a guard for a test with no occurrence in the window and should not occur here."
+                  "description": "stableRuns / runs, a fraction from 0 to 1. null only when runs is 0."
                 },
-                "flakeScore": {
-                  "type": "number"
-                },
-                "flipRate": {
-                  "type": "number"
+                "flakyRate": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "flakyRuns / runs, a fraction from 0 to 1. null only when runs is 0."
                 },
                 "failureRate": {
                   "anyOf": [
@@ -4963,80 +5410,148 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "failedRuns / runs, a fraction from 0 to 1. null only when runs is 0."
                 },
-                "runsConsidered": {
+                "timeLostMs": {
                   "type": "integer",
-                  "description": "How many runs flipRate and flakeScore are computed over (the flip_rate signal uses exactly these) - NOT how many runs the test appeared in, which is runsInWindow. Counted over the response's window, completed runs only (runs excluded as mass failures never count), one per run in which the test has a final result that is not skipped, and only runs that pass the revision filter: every run on the project's stableBranch (main when none is set) counts; a run on any other branch counts only if its testedRevision is set and equals the testedRevision of the test's previous run. Runs on other branches without a testedRevision do not count - squally-reporter sets one only with SAME_REPO_AS_APP=true or TESTED_REVISION - so a test that runs every day, but only on feature branches, can show 0. 0 therefore does not mean the test did not run, and it does not weaken the verdict: status can come from a signal that counts differently - retry_rate counts every run on every branch; consecutive_failures, failure_rate_flaky and failure_rate_broken count stableBranch runs only."
+                  "description": "Time spent on attempts that did not count, in ms, summed over runs: a failed run loses every attempt it made, a run rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
                 },
-                "runsInWindow": {
-                  "type": "integer",
-                  "description": "Runs in the response's window that contain this test, on all branches - the plain count, with no branch or revision filter. Completed runs only (runs excluded as mass failures never count), one per run in which the test has a final result that is not skipped. Never smaller than runsConsidered, which counts only the runs flipRate is computed over."
-                },
-                "failureStreak": {
-                  "type": "integer"
-                },
-                "lastSeenAt": {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                "lastRun": {
-                  "type": "object",
-                  "properties": {
-                    "runId": {
-                      "type": "string"
+                "recentResults": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "runId": {
+                        "type": "string"
+                      },
+                      "runNumber": {
+                        "type": "integer"
+                      },
+                      "startedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "branch": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The run's branch; null when its CI sent none."
+                      },
+                      "result": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "flaky",
+                          "failed"
+                        ],
+                        "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry) or failed."
+                      }
                     },
-                    "runNumber": {
-                      "type": "integer"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "startedAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
+                    "required": [
+                      "runId",
+                      "runNumber",
+                      "startedAt",
+                      "branch",
+                      "result"
+                    ]
                   },
-                  "required": [
-                    "runId",
-                    "runNumber",
-                    "status",
-                    "startedAt"
-                  ]
+                  "description": "The test's last 20 runs in the period, oldest first. Empty when it has none."
+                },
+                "branches": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": "Every branch the test ran on in the period, code-point order, a null branch (a run whose CI sent none) last."
+                },
+                "topBranch": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "branch": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "failures",
+                            "retries"
+                          ]
+                        },
+                        "count": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "branch",
+                        "kind",
+                        "count"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The branch with the most failed runs (kind failures, count = those runs); when no run failed, the branch with the most flaky runs (kind retries, count = those runs); null when neither. Ties go to the branch name in code-point order, a null branch last."
                 }
               },
               "required": [
                 "testName",
                 "filePath",
-                "status",
-                "statusReason",
-                "alsoActive",
-                "timeLostMs",
-                "flakeScore",
-                "flipRate",
+                "browser",
+                "runs",
+                "stableRuns",
+                "flakyRuns",
+                "failedRuns",
+                "stability",
+                "flakyRate",
                 "failureRate",
-                "runsConsidered",
-                "runsInWindow",
-                "failureStreak",
-                "lastSeenAt",
-                "lastRun"
+                "timeLostMs",
+                "recentResults",
+                "branches",
+                "topBranch"
               ]
             }
-          },
-          "gatheringDataCount": {
-            "type": "integer"
           }
         },
         "required": [
           "project",
-          "windowDays",
+          "population",
+          "days",
+          "since",
+          "until",
+          "branch",
+          "browser",
           "sort",
           "page",
-          "tests",
-          "gatheringDataCount"
+          "perPage",
+          "total",
+          "pageCount",
+          "items"
         ]
       },
-      "V4StatusResponse": {
+      "TestMetricsResponse": {
         "type": "object",
         "properties": {
           "project": {
@@ -5054,77 +5569,234 @@
               "name"
             ]
           },
-          "test": {
-            "type": "object",
-            "properties": {
-              "name": {
+          "population": {
+            "type": "string",
+            "const": "ci_completed_not_excluded",
+            "description": "Which runs every number counts: completed CI runs (reported with a CI provider) started inside the period, without the runs excluded as a mass failure (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count."
+          },
+          "days": {
+            "type": "integer",
+            "description": "The period in days, ending at until."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the period: until minus days. ISO-8601."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the period: when the numbers were computed. ISO-8601."
+          },
+          "branch": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "filePath": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "name",
-              "filePath"
-            ]
+            ],
+            "description": "The branch filter applied; null for every branch."
           },
-          "status": {
+          "testName": {
             "type": "string",
-            "enum": [
-              "insufficient_data",
-              "healthy",
-              "flaky",
-              "broken"
+            "description": "The stored name: Playwright's title path, the Playwright project first when there is one. The identity other test routes take."
+          },
+          "filePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
-          "awaitingFirstWrite": {
-            "type": "boolean",
-            "description": "True when the test is known but no verdict has been stored for it yet; status then reads insufficient_data."
+          "browser": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Playwright project the name starts with (chromium in \"chromium > cart.spec.ts > adds an item\") - null when the name has none, i.e. when its second part is not the test's own file."
           },
-          "activeSignals": {
+          "runs": {
+            "type": "integer",
+            "description": "CI runs in the period in which the test has a final attempt that did not skip: stableRuns + flakyRuns + failedRuns."
+          },
+          "stableRuns": {
+            "type": "integer",
+            "description": "Of runs, those whose final attempt passed on the first try."
+          },
+          "flakyRuns": {
+            "type": "integer",
+            "description": "Of runs, those whose final attempt passed after at least one retry."
+          },
+          "failedRuns": {
+            "type": "integer",
+            "description": "Of runs, those whose final attempt failed."
+          },
+          "stability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "stableRuns / runs, a fraction from 0 to 1. null only when runs is 0."
+          },
+          "flakyRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "flakyRuns / runs, a fraction from 0 to 1. null only when runs is 0."
+          },
+          "failureRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "failedRuns / runs, a fraction from 0 to 1. null only when runs is 0."
+          },
+          "timeLostMs": {
+            "type": "integer",
+            "description": "Time spent on attempts that did not count, in ms, summed over runs: a failed run loses every attempt it made, a run rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+          },
+          "recentResults": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "signal": {
+                "runId": {
                   "type": "string"
                 },
-                "label": {
-                  "type": "string"
+                "runNumber": {
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "branch": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The run's branch; null when its CI sent none."
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "stable",
+                    "flaky",
+                    "failed"
+                  ],
+                  "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry) or failed."
                 }
               },
               "required": [
-                "signal",
-                "label"
+                "runId",
+                "runNumber",
+                "startedAt",
+                "branch",
+                "result"
               ]
-            }
+            },
+            "description": "The test's last 20 runs in the period, oldest first. Empty when it has none."
           },
-          "labels": {
+          "branches": {
             "type": "array",
             "items": {
-              "type": "string",
-              "enum": [
-                "flips",
-                "retries"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ]
-            }
+            },
+            "description": "Every branch the test ran on in the period, code-point order, a null branch (a run whose CI sent none) last."
+          },
+          "topBranch": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "branch": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "failures",
+                      "retries"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "branch",
+                  "kind",
+                  "count"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The branch with the most failed runs (kind failures, count = those runs); when no run failed, the branch with the most flaky runs (kind retries, count = those runs); null when neither. Ties go to the branch name in code-point order, a null branch last."
           }
         },
         "required": [
           "project",
-          "test",
-          "status",
-          "awaitingFirstWrite",
-          "activeSignals",
-          "labels"
+          "population",
+          "days",
+          "since",
+          "until",
+          "branch",
+          "testName",
+          "filePath",
+          "browser",
+          "runs",
+          "stableRuns",
+          "flakyRuns",
+          "failedRuns",
+          "stability",
+          "flakyRate",
+          "failureRate",
+          "timeLostMs",
+          "recentResults",
+          "branches",
+          "topBranch"
         ]
       },
       "TestHistoryResponse": {
@@ -5755,7 +6427,8 @@
             ]
           },
           "runsInWindow": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Completed CI runs in the window on branchScope, without mass-failure runs - the runs windowStability is counted over."
           },
           "suiteSize": {
             "type": "integer"
@@ -5768,7 +6441,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Suite stability, 0-100: of the final test results in the window's completed CI runs on branchScope (mass-failure runs and skipped results left out), the share that passed on the first try, rounded. A result that passed only after a retry counts against it. null when no such result exists."
           },
           "timeLost": {
             "type": "object",
@@ -5806,24 +6480,49 @@
               "failing": {
                 "type": "integer"
               },
-              "withVerdict": {
-                "type": "integer"
-              },
               "testsRun": {
                 "type": "integer"
               }
             },
             "required": [
               "failing",
-              "withVerdict",
               "testsRun"
-            ]
+            ],
+            "description": "Tests that failed at least once in the window on branchScope, out of the tests those runs reported - every run, local ones included. Not the dashboard's Failing tests tile: that is testMetrics.failingTests, over CI runs on every branch."
           },
-          "flakyOrBrokenCount": {
-            "type": "integer"
-          },
-          "flakyWindowDays": {
-            "type": "integer"
+          "testMetrics": {
+            "type": "object",
+            "properties": {
+              "population": {
+                "type": "string",
+                "const": "ci_completed_not_excluded",
+                "description": "Which runs every number counts: completed CI runs (reported with a CI provider) started inside the period, without the runs excluded as a mass failure (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count."
+              },
+              "days": {
+                "type": "integer",
+                "description": "The period in days: the same as window.days."
+              },
+              "testsWithRetries": {
+                "type": "integer",
+                "description": "Of ciTests, the tests with at least one flaky run in the period (a final attempt that passed after a retry)."
+              },
+              "failingTests": {
+                "type": "integer",
+                "description": "Of ciTests, the tests with at least one failed run in the period."
+              },
+              "ciTests": {
+                "type": "integer",
+                "description": "Tests with at least one CI run in the period."
+              }
+            },
+            "required": [
+              "population",
+              "days",
+              "testsWithRetries",
+              "failingTests",
+              "ciTests"
+            ],
+            "description": "The dashboard's Tests with retries and Failing tests tiles and their denominator, counted like /tests: CI runs only, every branch - not narrowed by branchScope. The top-level failingTests counts differently: every run in the window on branchScope, local ones included."
           },
           "slowestTests": {
             "type": "array",
@@ -5932,8 +6631,7 @@
           "windowStability",
           "timeLost",
           "failingTests",
-          "flakyOrBrokenCount",
-          "flakyWindowDays",
+          "testMetrics",
           "slowestTests",
           "timeSinks",
           "runsSeries"

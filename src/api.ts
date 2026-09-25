@@ -41,6 +41,19 @@ export type ApiUnreachable = {
 export type ApiResult = ApiSuccess | ApiFailure | ApiUnreachable;
 
 /**
+ * Query parameters for which an EMPTY STRING is a value, not an absence.
+ *
+ * filePath: "" names a test with no file, and the API tells the two apart
+ * (`?filePath=` present and empty vs. not sent - squally-app's test-scoped
+ * routes read `searchParams.get("filePath")`, so "" and null differ). Until
+ * 0.2.0 this client dropped the empty value like any other, so a tool
+ * description that promised "an empty value means a test with no file"
+ * silently asked about the name alone - and got ambiguous_test back for the
+ * very case the value exists to settle.
+ */
+const EMPTY_IS_A_VALUE: ReadonlySet<string> = new Set(["filePath"]);
+
+/**
  * Builds the request URL.
  *
  * PATH VALUES ARE ENCODED, and the one that matters is testName. A Playwright
@@ -68,8 +81,10 @@ export function buildUrl(
     const value = args[parameter.name];
     // Omitted rather than sent empty: the API is strict about query values and
     // answers invalid_parameter rather than falling back to a default, so an
-    // empty string would turn "not specified" into a 400.
-    if (value === undefined || value === null || value === "") continue;
+    // empty string would turn "not specified" into a 400. Except where the
+    // empty string IS the value (EMPTY_IS_A_VALUE).
+    if (value === undefined || value === null) continue;
+    if (value === "" && !EMPTY_IS_A_VALUE.has(parameter.name)) continue;
     query.set(parameter.name, String(value));
   }
 

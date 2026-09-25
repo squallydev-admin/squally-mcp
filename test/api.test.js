@@ -51,15 +51,30 @@ test("path parameters are substituted and query parameters appended", () => {
 test('a test name with "/" is encoded as %2F', () => {
   // The measurement in read-api-mcp-spec §4.2: %2F matches the route and
   // arrives decoded; an unencoded slash is a different path and 404s.
-  const url = buildUrl(CONFIG.apiBase, operationFor("getTestStatus"), {
+  const url = buildUrl(CONFIG.apiBase, operationFor("getTestMetrics"), {
     projectId: "p1",
     testName: "checkout/completes payment",
   });
   assert.equal(
     url,
-    "https://app.squally.dev/api/v1/projects/p1/tests/checkout%2Fcompletes%20payment/status",
+    "https://app.squally.dev/api/v1/projects/p1/tests/checkout%2Fcompletes%20payment/metrics",
   );
   assert.equal(url.includes("/checkout/completes"), false);
+});
+
+test("a test name is one path segment, whatever it contains", () => {
+  // The raw name goes in; encodeURIComponent makes it exactly one segment, so
+  // "/", "?", "#" and "%" cannot end the segment, start a query or be read as
+  // an escape that was never there.
+  const url = buildUrl(CONFIG.apiBase, operationFor("getTestMetrics"), {
+    projectId: "p1",
+    testName: "chromium > a/b.spec.ts > 50% off? #1",
+  });
+  assert.equal(
+    url,
+    "https://app.squally.dev/api/v1/projects/p1/tests/" +
+      "chromium%20%3E%20a%2Fb.spec.ts%20%3E%2050%25%20off%3F%20%231/metrics",
+  );
 });
 
 test("other path values are encoded too", () => {
@@ -77,6 +92,45 @@ test("an omitted or empty query parameter is not sent at all", () => {
     sha: undefined,
   });
   assert.equal(url, "https://app.squally.dev/api/v1/projects/p1/runs");
+});
+
+test("an empty filePath IS sent - it names a test with no file", () => {
+  // The one exception to the rule above (EMPTY_IS_A_VALUE in src/api.ts): the
+  // API tells `?filePath=` apart from no filePath at all, and "" is the only
+  // way to ask for a test that has no file.
+  for (const operationId of ["getTestMetrics", "getRunTestAttempts"]) {
+    const url = buildUrl(CONFIG.apiBase, operationFor(operationId), {
+      projectId: "p1",
+      runId: "r1",
+      testName: "t",
+      filePath: "",
+    });
+    assert.match(url, /\?filePath=$/, operationId);
+  }
+  // Absent stays absent.
+  const absent = buildUrl(CONFIG.apiBase, operationFor("getTestMetrics"), {
+    projectId: "p1",
+    testName: "t",
+  });
+  assert.equal(absent, "https://app.squally.dev/api/v1/projects/p1/tests/t/metrics");
+});
+
+test("the tests list passes every argument through unchanged, in document order", () => {
+  const url = buildUrl(CONFIG.apiBase, operationFor("listTests"), {
+    perPage: 100,
+    sort: "flakyRate",
+    projectId: "p1",
+    days: 30,
+    browser: "chromium",
+    branch: "feature/a b",
+    search: "check out",
+    page: 2,
+  });
+  assert.equal(
+    url,
+    "https://app.squally.dev/api/v1/projects/p1/tests" +
+      "?days=30&search=check+out&branch=feature%2Fa+b&browser=chromium&sort=flakyRate&page=2&perPage=100",
+  );
 });
 
 test("the request carries the bearer key, the user agent and accepts JSON", async () => {
@@ -138,7 +192,7 @@ test("an API error carries the sentence, the code and the action", async () => {
       code: "ambiguous_test",
     }),
   );
-  const api = await callOperation(CONFIG, operationFor("getTestStatus"), {
+  const api = await callOperation(CONFIG, operationFor("getTestMetrics"), {
     projectId: "p1",
     testName: "t",
   }, fetcher);
@@ -149,6 +203,65 @@ test("an API error carries the sentence, the code and the action", async () => {
   assert.match(text, /Several tests have this name/);
   assert.match(text, /Error code: ambiguous_test/);
   assert.match(text, /What to do: .*filePath/);
+});
+
+test("ambiguous_test lists the files as the exact filePath values to retry with", async () => {
+  // The sentence names them in HTTP terms, and writes a test with no file as
+  // "(no file)" - which the model must not copy: that argument is "".
+  const { fetcher } = stubFetch(
+    jsonResponse(400, {
+      error:
+        "Several tests have this name. Pass ?filePath= with one of: " +
+        "tests/a.spec.ts, tests/nested/b.spec.ts, (no file).",
+      code: "ambiguous_test",
+    }),
+  );
+  const api = await callOperation(CONFIG, operationFor("getTestMetrics"), {
+    projectId: "p1",
+    testName: "t",
+  }, fetcher);
+  const lines = toolResult(api, ERROR_CODES, CONFIG.apiBase).content[0].text.split("\n");
+
+  assert.equal(lines[0], api.message, "the API's sentence comes first, verbatim");
+  assert.equal(lines[1], "Error code: ambiguous_test");
+  assert.equal(
+    lines[2],
+    'Retry with filePath set to exactly one of: "tests/a.spec.ts", "tests/nested/b.spec.ts", ' +
+      '"" (the test with no file)',
+  );
+  assert.match(lines[3], /^What to do: /);
+});
+
+test("a reworded ambiguous_test sentence still reaches the model, without the parsed line", async () => {
+  const { fetcher } = stubFetch(
+    jsonResponse(400, { error: "That name is used by several tests.", code: "ambiguous_test" }),
+  );
+  const api = await callOperation(CONFIG, operationFor("getTestMetrics"), {
+    projectId: "p1",
+    testName: "t",
+  }, fetcher);
+  const text = toolResult(api, ERROR_CODES, CONFIG.apiBase).content[0].text;
+  assert.match(text, /^That name is used by several tests\./);
+  assert.doesNotMatch(text, /Retry with filePath/);
+  assert.match(text, /What to do: /);
+});
+
+test("test_not_found passes through as the API sent it, with its action", async () => {
+  const { fetcher } = stubFetch(
+    jsonResponse(404, { error: "No test with this name in this project.", code: "test_not_found" }),
+  );
+  const api = await callOperation(CONFIG, operationFor("getTestMetrics"), {
+    projectId: "p1",
+    testName: "nope",
+  }, fetcher);
+  const result = toolResult(api, ERROR_CODES, CONFIG.apiBase);
+  assert.equal(result.isError, true);
+  assert.equal(
+    result.content[0].text,
+    "No test with this name in this project.\n" +
+      "Error code: test_not_found\n" +
+      `What to do: ${ERROR_CODES.get("test_not_found").action}`,
+  );
 });
 
 test("every code in the document maps to an action", () => {

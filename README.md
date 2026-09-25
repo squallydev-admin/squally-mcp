@@ -1,8 +1,8 @@
 # squally-mcp
 
 A local [MCP](https://modelcontextprotocol.io) server that lets a coding agent
-read your [Squally](https://app.squally.dev) data: which CI runs happened, which
-tests are flaky, and why a particular test failed.
+read your [Squally](https://app.squally.dev) data: which CI runs happened, how
+stable each test is, and why a particular test failed.
 
 It runs on your machine over stdio and talks to Squally's read API over HTTPS.
 Point Claude Code, Codex, Cursor or Claude Desktop at it and ask "why is
@@ -32,7 +32,8 @@ agent can read:
   prompt**, which carries the same snippet plus an **ARIA snapshot of your
   application at the moment of failure** (whatever was on screen, truncated to
   3000 characters);
-- **flakiness verdicts** and how much time each flaky test has cost;
+- **per-test metrics**: how often each test passed on the first try, passed
+  only after a retry, or failed, and how much time retries and failures cost;
 - **error signatures**: failures grouped across runs and branches.
 
 It cannot see screenshots, videos or traces — artifacts are deliberately out of
@@ -140,14 +141,86 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | `squally-find-run` | Which runs happened — latest, or by branch, commit SHA or status. Counters only. | cheap |
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
 | `squally-debug-failure` | Every attempt of one test in one run: error, stack, Copy-for-AI prompt. | cheap |
-| `squally-get-test-status` | The stored flakiness status of **one** test. | cheap — one lookup |
-| `squally-list-flaky-tests` | The ranked flaky/broken list with time lost. | **expensive — one engine pass** |
+| `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
+| `squally-list-tests` | Every test with a CI run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
 | `squally-list-errors` | Error signatures in a period: what keeps failing, grouped. | cheap |
 
-For a single test use `squally-get-test-status`, not
-`squally-list-flaky-tests` — the tool descriptions say so, and the server
-repeats it in its instructions, because the difference is one database lookup
-against a pass over the project's recent runs.
+For a single test use `squally-get-test-metrics`, not `squally-list-tests` —
+the tool descriptions say so, and the server repeats it in its instructions.
+
+### What the numbers mean
+
+The two test tools count **completed CI runs** in the period (7, 14, 30 or 90
+days; 14 by default), on every branch unless you name one — without runs where
+most of the suite failed at once. Local runs never count. Per test:
+
+- **stability** — runs that passed on the first try ÷ runs;
+- **flakyRate** — runs that passed only after a retry ÷ runs;
+- **failureRate** — failed runs ÷ runs.
+
+Each is a fraction from 0 to 1, and `null` when the test has no run in the
+period. **There is no verdict**: nothing calls a test flaky, broken or
+healthy. The tools return the numbers; the agent — or you — judges them.
+
+### Example: `squally-list-tests`
+
+```json
+{ "projectId": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15", "perPage": 3 }
+```
+
+The three least stable tests of the last 14 days (abridged):
+
+```json
+{
+  "population": "ci_completed_not_excluded",
+  "days": 14,
+  "sort": "stability",
+  "total": 409,
+  "items": [
+    {
+      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+      "filePath": "tests/checkout.spec.ts",
+      "runs": 8,
+      "stability": 0.5,
+      "flakyRate": 0.5,
+      "failureRate": 0,
+      "timeLostMs": 7361,
+      "topBranch": { "branch": "main", "kind": "retries", "count": 3 }
+    }
+  ]
+}
+```
+
+### Example: `squally-get-test-metrics`
+
+```json
+{
+  "projectId": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
+  "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code"
+}
+```
+
+The same numbers as that test's row, for one test (abridged):
+
+```json
+{
+  "days": 14,
+  "branch": null,
+  "runs": 8,
+  "stableRuns": 4,
+  "flakyRuns": 4,
+  "failedRuns": 0,
+  "stability": 0.5,
+  "flakyRate": 0.5,
+  "failureRate": 0,
+  "branches": ["feature/saved-carts", "main"]
+}
+```
+
+Pass the name exactly as Squally shows it. When it exists in several spec
+files, the tool answers with the `filePath` values to retry with; a test with
+results but no completed CI run in the period answers `runs: 0` and `null`
+rates — an answer, not an error.
 
 ## Development
 
@@ -163,7 +236,8 @@ vendored at `src/openapi/v1.json` — an input schema is the operation's
 parameters, an output schema is its 200 response. Nothing is transcribed by
 hand, so the two cannot drift. `test/drift.test.js` compares the vendored copy
 against the live document and fails when an operation or parameter has moved;
-it skips loudly when offline.
+it skips loudly when offline, and while the live API is still an older version
+than the vendored one — a release that has not been deployed yet.
 
 ## Releasing
 

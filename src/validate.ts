@@ -40,7 +40,12 @@ function integerSchema(schema: JsonSchema): z.ZodType {
   }
   let out = z.number().int();
   const minimum = schema["minimum"];
+  const maximum = schema["maximum"];
   if (typeof minimum === "number") out = out.min(minimum);
+  // Read since 0.2.0: squally-list-tests' perPage is the first parameter with
+  // an upper bound (1-100). Unread, perPage=500 would pass here and come back
+  // from the API as a 400 about a value the model never saw refused.
+  if (typeof maximum === "number") out = out.max(maximum);
   return out;
 }
 

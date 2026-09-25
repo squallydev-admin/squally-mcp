@@ -74,10 +74,12 @@ test("every tool says what it answers and what it costs, for people", () => {
     assert.ok(tool.answers.length > 0, `${tool.name}: empty answers`);
     assert.ok(["cheap", "expensive"].includes(tool.cost), `${tool.name}: cost ${tool.cost}`);
   }
-  // §5.1: exactly one tool costs an engine pass.
+  // §5.1 had exactly one tool that cost an engine pass, squally-list-flaky-tests.
+  // Since 0.2.0 there is none: the engine is gone, and squally-list-tests is
+  // paged in the database ("expensive" stays in the type for the docs).
   assert.deepEqual(
     TOOLS.filter((t) => t.cost === "expensive").map((t) => t.name),
-    ["squally-list-flaky-tests"],
+    [],
   );
 });
 

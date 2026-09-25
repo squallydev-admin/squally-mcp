@@ -49,6 +49,30 @@ export function successResult(data: unknown, keyExpiresAt: string | null): CallT
   };
 }
 
+/**
+ * The files an ambiguous_test answer names, as the filePath values to retry
+ * with - or null when the sentence does not have the expected shape.
+ *
+ * WHY PARSE A SENTENCE the document says "may be reworded": the files exist
+ * nowhere else in the answer, and the sentence names them in HTTP terms
+ * ("Pass ?filePath= with one of: tests/a.spec.ts, (no file).") - where
+ * "(no file)" is a placeholder the model must NOT copy: the argument for a
+ * test with no file is the empty string. A reworded sentence only costs this
+ * extra line; the sentence itself is always shown verbatim above it.
+ */
+export function ambiguousFilePaths(message: string): string[] | null {
+  const listed = /one of: (.+)\.$/.exec(message.trim())?.[1];
+  if (!listed) return null;
+  return listed.split(", ").map((file) => (file === "(no file)" ? "" : file));
+}
+
+function filePathLine(paths: string[]): string {
+  const quoted = paths.map((path) =>
+    path === "" ? `"" (the test with no file)` : JSON.stringify(path),
+  );
+  return `Retry with filePath set to exactly one of: ${quoted.join(", ")}`;
+}
+
 export function failureResult(
   failure: ApiFailure,
   errorCodes: Map<string, ErrorCode>,
@@ -62,6 +86,10 @@ export function failureResult(
 
   lines.push(failure.message ?? `The Squally API answered HTTP ${failure.status}.`);
   if (failure.code) lines.push(`Error code: ${failure.code}`);
+  if (failure.code === "ambiguous_test" && failure.message) {
+    const paths = ambiguousFilePaths(failure.message);
+    if (paths && paths.length > 0) lines.push(filePathLine(paths));
+  }
   if (known) {
     lines.push(`What to do: ${known.action}`);
   } else if (failure.status >= 500) {
