@@ -24,11 +24,12 @@ Worth knowing before you hand a key to an assistant. Through this server an
 agent can read:
 
 - your **projects**, their names and stable branches;
-- your **CI runs** — commit SHA, branch, author, timing, pass/fail counts;
+- your **CI runs** — commit SHA and message, branch, author, pull request,
+  timing, pass/fail counts;
 - **per-test results** for a run, including which shard ran what;
-- for a failing attempt: the **error message and stack**, the **captured
-  browser console**, and the **Copy-for-AI prompt** — which contains
-  **verbatim source code from your test file** and an **ARIA snapshot of your
+- for a failing attempt: the **error message and stack**, the **code snippet**
+  — **verbatim source code from your test file** — and the **Copy-for-AI
+  prompt**, which carries the same snippet plus an **ARIA snapshot of your
   application at the moment of failure** (whatever was on screen, truncated to
   3000 characters);
 - **flakiness verdicts** and how much time each flaky test has cost;
@@ -118,7 +119,7 @@ restart the app:
 | `squally-list-projects` | Which projects exist. **Start here** — every other tool needs a `projectId` from it. | cheap |
 | `squally-find-run` | Which runs happened — latest, or by branch, commit SHA or status. Counters only. | cheap |
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
-| `squally-debug-failure` | Every attempt of one test in one run: error, stack, console, Copy-for-AI prompt. | cheap |
+| `squally-debug-failure` | Every attempt of one test in one run: error, stack, Copy-for-AI prompt. | cheap |
 | `squally-get-test-status` | The stored flakiness status of **one** test. | cheap — one lookup |
 | `squally-list-flaky-tests` | The ranked flaky/broken list with time lost. | **expensive — one engine pass** |
 | `squally-list-errors` | Error signatures in a period: what keeps failing, grouped. | cheap |
