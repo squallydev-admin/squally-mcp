@@ -266,9 +266,15 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // direction left squally-find-run, and squally-find-run's cursor description
   // no longer mentions direction (OMITTED_PARAMETERS, PARAMETER_DESCRIPTIONS).
   // Nothing else in the list changed - diffed against the published 0.1.2.
+  //
+  // 0.1.4: 75c28613460d6cdc -> 3002b7484ca91d58. Re-vendored after
+  // squally-app 68d9ca7 (25.09.): squally-list-flaky-tests' output schema
+  // gains runsInWindow (integer, required) and a description on
+  // runsConsidered. Three paths, all in that one output schema - no input
+  // schema, no other tool; diffed against the 0.1.3 list.
   assert.equal(
     digest(toolList()),
-    "75c28613460d6cdc",
+    "3002b7484ca91d58",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

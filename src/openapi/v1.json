@@ -1758,6 +1758,7 @@
                       "flipRate": 0.31,
                       "failureRate": 0.18,
                       "runsConsidered": 38,
+                      "runsInWindow": 44,
                       "failureStreak": 0,
                       "lastSeenAt": "2026-09-24T07:34:05.000Z",
                       "lastRun": {
@@ -1780,6 +1781,7 @@
                       "flipRate": 0.05,
                       "failureRate": 1,
                       "runsConsidered": 12,
+                      "runsInWindow": 12,
                       "failureStreak": 12,
                       "lastSeenAt": "2026-09-23T16:09:31.000Z",
                       "lastRun": {
@@ -4964,7 +4966,12 @@
                   ]
                 },
                 "runsConsidered": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "How many runs flipRate and flakeScore are computed over (the flip_rate signal uses exactly these) - NOT how many runs the test appeared in, which is runsInWindow. Counted over the response's window, completed runs only (runs excluded as mass failures never count), one per run in which the test has a final result that is not skipped, and only runs that pass the revision filter: every run on the project's stableBranch (main when none is set) counts; a run on any other branch counts only if its testedRevision is set and equals the testedRevision of the test's previous run. Runs on other branches without a testedRevision do not count - squally-reporter sets one only with SAME_REPO_AS_APP=true or TESTED_REVISION - so a test that runs every day, but only on feature branches, can show 0. 0 therefore does not mean the test did not run, and it does not weaken the verdict: status can come from a signal that counts differently - retry_rate counts every run on every branch; consecutive_failures, failure_rate_flaky and failure_rate_broken count stableBranch runs only."
+                },
+                "runsInWindow": {
+                  "type": "integer",
+                  "description": "Runs in the response's window that contain this test, on all branches - the plain count, with no branch or revision filter. Completed runs only (runs excluded as mass failures never count), one per run in which the test has a final result that is not skipped. Never smaller than runsConsidered, which counts only the runs flipRate is computed over."
                 },
                 "failureStreak": {
                   "type": "integer"
@@ -5009,6 +5016,7 @@
                 "flipRate",
                 "failureRate",
                 "runsConsidered",
+                "runsInWindow",
                 "failureStreak",
                 "lastSeenAt",
                 "lastRun"
