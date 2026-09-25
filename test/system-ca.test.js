@@ -94,6 +94,20 @@ const NEEDS_CLEAN_TLS =
     ? `NOT CHECKED here - local TLS is re-signed by "${INTERCEPTED_BY}" on this machine; runs in full where TLS is not intercepted (CI)`
     : false);
 
+/**
+ * NEVER SKIPPED IN CI. CI is where these scenarios are known to run - a skip
+ * there would let a green build stand for a check that never happened, the
+ * release workflow's included. So in CI (GitHub sets CI=true) a reason to skip
+ * becomes a failure that states it.
+ */
+const IN_CI = Boolean(process.env.CI);
+function skipOutsideCi(reason) {
+  return IN_CI ? false : reason;
+}
+function mustRun(reason) {
+  assert.equal(reason, false, `in CI this scenario must run, but: ${reason}`);
+}
+
 /** Runs the probe in its own process - asynchronously, so the server above can answer. */
 function probe(args, env = {}) {
   return new Promise((resolve, reject) => {
@@ -112,7 +126,8 @@ function probe(args, env = {}) {
 
 // --- the three scenarios ---------------------------------------------------
 
-test("a server whose CA only the system store knows is reached", { skip: NEEDS_CLEAN_TLS }, async () => {
+test("a server whose CA only the system store knows is reached", { skip: skipOutsideCi(NEEDS_CLEAN_TLS) }, async () => {
+  mustRun(NEEDS_CLEAN_TLS);
   const result = await withServer((apiBase) => probe(["call", apiBase, "fixture"]));
   assert.deepEqual(result.outcome, { kind: "loaded", added: 1, unparseable: 0 });
   assert.equal(result.kind, "success", result.text);
@@ -139,7 +154,8 @@ test("SQUALLY_USE_SYSTEM_CA=0 restores the old behaviour", async () => {
 
 // --- added, never replaced ---------------------------------------------------
 
-test("Node's own list is kept whole; the system certificate is appended", { skip: NEEDS_API }, async () => {
+test("Node's own list is kept whole; the system certificate is appended", { skip: skipOutsideCi(NEEDS_API) }, async () => {
+  mustRun(NEEDS_API);
   const inventory = await probe(["inventory"]);
   assert.equal(inventory.keptBundled, true, "a bundled Mozilla root was dropped");
   assert.equal(inventory.keptPrevious, true, "a previously trusted root was dropped");
@@ -147,7 +163,8 @@ test("Node's own list is kept whole; the system certificate is appended", { skip
   assert.equal(inventory.after, inventory.before + 1);
 });
 
-test("NODE_EXTRA_CA_CERTS keeps working, and a root it already holds is not counted again", { skip: NEEDS_CLEAN_TLS }, async () => {
+test("NODE_EXTRA_CA_CERTS keeps working, and a root it already holds is not counted again", { skip: skipOutsideCi(NEEDS_CLEAN_TLS) }, async () => {
+  mustRun(NEEDS_CLEAN_TLS);
   const extra = { NODE_EXTRA_CA_CERTS: fileURLToPath(new URL("ca.pem", FIXTURES)) };
   const withEmptyStore = await withServer((apiBase) => probe(["call", apiBase, "empty"], extra));
   assert.deepEqual(withEmptyStore.outcome, { kind: "loaded", added: 0, unparseable: 0 });
