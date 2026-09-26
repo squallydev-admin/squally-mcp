@@ -166,6 +166,9 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /There is no verdict/);
   assert.match(metrics, /runs = 0 with null rates is a valid answer/);
   assert.match(metrics, /\bCheap\b/);
+  // 0.2.1, API 1.0.0-beta.3: the last 20 runs include skipped ones, which the
+  // numbers beside them leave out - a model that counts them gets the rates wrong.
+  assert.match(metrics, /last 20 runs \(runs it skipped included, as result "skipped" - shown, never counted in runs or any rate\)/);
 
   const list = byName["squally-list-tests"].description;
   assert.match(list, /There is no verdict/);
@@ -323,6 +326,19 @@ test("the run tools count flaky, not recovered (API 1.0.0-beta.2)", () => {
   }
 });
 
+test("a recent result can be skipped, in both metric tools (API 1.0.0-beta.3)", () => {
+  // Additive in beta.3: a run whose final attempt skipped is listed in
+  // recentResults and counted nowhere. The enum is pinned so a client that
+  // validates structured output learns of the next new value from a failing test,
+  // not from a rejected response.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const one = byName["squally-get-test-metrics"].outputSchema.properties.recentResults;
+  const each = byName["squally-list-tests"].outputSchema.properties.items.items.properties.recentResults;
+  for (const recent of [one, each]) {
+    assert.deepEqual(recent.items.properties.result.enum, ["stable", "flaky", "failed", "skipped"]);
+  }
+});
+
 test("testName and filePath say NOT to URL-encode - the 24.09. defect", () => {
   // A tool argument is not a URL. The OpenAPI document tells an HTTP caller to
   // percent-encode the name, and in the recorded Claude Code session of 24.09.
@@ -391,9 +407,17 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // and the counts of squally-find-run's rows and of squally-get-run are
   // total/passed/failed/skipped/FLAKY where the fifth was `recovered` (now with
   // a description). Nothing else in them changed - diffed against 0.1.4.
+  //
+  // 0.2.1: 4c899fd36e0899fc -> ac0be4f17620ae6f. Re-vendored from API
+  // 1.0.0-beta.3 (squally-app 6a85adf, 26.09.2026). In the output schemas of
+  // squally-get-test-metrics and squally-list-tests, recentResults[].result
+  // gains the enum value "skipped" and it and recentResults have new
+  // descriptions; squally-get-test-metrics' description says the last 20 runs
+  // include skipped ones, counted nowhere. No input schema and no other tool
+  // changed - diffed against 0.2.0.
   assert.equal(
     digest(toolList()),
-    "4c899fd36e0899fc",
+    "ac0be4f17620ae6f",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

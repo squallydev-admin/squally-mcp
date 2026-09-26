@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.1 — requires API 1.0.0-beta.3; skipped in recentResults
+
+**This version requires the read API 1.0.0-beta.3.** From that version on, a
+test's `recentResults` include the runs in which its final attempt was
+skipped, with `result` `skipped`. 0.2.0's output schemas allow only `stable`,
+`flaky` and `failed`, so a client that validates structured output (the MCP
+SDK's does) rejects the response of `squally-get-test-metrics` or
+`squally-list-tests` whenever a test's last 20 runs include a skip.
+
+### Changed
+
+- `squally-get-test-metrics` and `squally-list-tests`: in the output schema,
+  `recentResults[].result` gains the enum value `skipped`, and it and
+  `recentResults` carry the API's new descriptions. A skipped run is shown and
+  never counted - not in `runs`, any rate, `timeLostMs`, `branches` or
+  `topBranch`.
+- `squally-get-test-metrics`' description says its last 20 runs include
+  skipped ones, counted nowhere.
+- The vendored OpenAPI document is 1.0.0-beta.3. It no longer has
+  `GET /projects/{projectId}/flaky`, which no tool has called since 0.2.0.
+
+No input schema and no other tool changed.
+
 ## 0.2.0 — breaking: requires Squally API 1.0.0-beta.2
 
 **This version requires the read API 1.0.0-beta.2**, which removed the verdict

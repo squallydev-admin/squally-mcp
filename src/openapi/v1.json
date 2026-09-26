@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.2",
+    "version": "1.0.0-beta.3",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Settings → API keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -1145,7 +1145,7 @@
                           }
                         }
                       ],
-                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed (the test is flaky rather than consistently broken).\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 14 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
+                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed - a flaky run.\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 14 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
@@ -1933,12 +1933,12 @@
                       "testName": "chromium > auth.spec.ts > Login > remembers the device",
                       "filePath": "tests/auth.spec.ts",
                       "browser": "chromium",
-                      "runs": 8,
-                      "stableRuns": 7,
+                      "runs": 7,
+                      "stableRuns": 6,
                       "flakyRuns": 1,
                       "failedRuns": 0,
-                      "stability": 0.875,
-                      "flakyRate": 0.125,
+                      "stability": 0.8571428571428571,
+                      "flakyRate": 0.14285714285714285,
                       "failureRate": 0,
                       "timeLostMs": 3071,
                       "recentResults": [
@@ -1968,7 +1968,7 @@
                           "runNumber": 1270,
                           "startedAt": "2026-09-17T07:29:58.000Z",
                           "branch": "main",
-                          "result": "stable"
+                          "result": "skipped"
                         },
                         {
                           "runId": "6b1f8d23-9e4a-4c07-b5d2-3a8e0f6c1d74",
@@ -4269,57 +4269,6 @@
           }
         }
       }
-    },
-    "/projects/{projectId}/flaky": {
-      "get": {
-        "operationId": "listFlakyTests",
-        "summary": "List flaky tests (deprecated)",
-        "description": "Deprecated in 1.0.0-beta.2 and removed in the next release: call GET /projects/{projectId}/tests. Answers 301 Moved Permanently to it, carrying the query over - sort=rate becomes sort=flakyRate, sort=timeLost stays, sort=impact and status are dropped, everything else passes through unchanged. The redirect checks no key; the list it points to does.",
-        "tags": [
-          "Tests"
-        ],
-        "deprecated": true,
-        "parameters": [
-          {
-            "name": "projectId",
-            "in": "path",
-            "required": true,
-            "description": "A project id from GET /projects.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "301": {
-            "description": "Moved permanently to /projects/{projectId}/tests. No body.",
-            "headers": {
-              "Location": {
-                "description": "The absolute URL of /projects/{projectId}/tests, with the query carried over.",
-                "schema": {
-                  "type": "string",
-                  "format": "uri"
-                }
-              },
-              "Deprecation": {
-                "description": "When the deprecation took effect, as @ and a Unix time (RFC 9745).",
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Link": {
-                "description": "/projects/{projectId}/tests as rel=\"successor-version\".",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
-          }
-        }
-      }
     }
   },
   "components": {
@@ -5448,9 +5397,10 @@
                         "enum": [
                           "stable",
                           "flaky",
-                          "failed"
+                          "failed",
+                          "skipped"
                         ],
-                        "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry) or failed."
+                        "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry), failed, or skipped. A skipped run appears only here: it is not a run of the test, so it counts in neither runs nor any rate."
                       }
                     },
                     "required": [
@@ -5461,7 +5411,7 @@
                       "result"
                     ]
                   },
-                  "description": "The test's last 20 runs in the period, oldest first. Empty when it has none."
+                  "description": "The test's last 20 runs in the period, oldest first, including runs whose final attempt skipped (result skipped). Empty when it has none."
                 },
                 "branches": {
                   "type": "array",
@@ -5708,9 +5658,10 @@
                   "enum": [
                     "stable",
                     "flaky",
-                    "failed"
+                    "failed",
+                    "skipped"
                   ],
-                  "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry) or failed."
+                  "description": "The run's final attempt: stable (passed on the first try), flaky (passed after at least one retry), failed, or skipped. A skipped run appears only here: it is not a run of the test, so it counts in neither runs nor any rate."
                 }
               },
               "required": [
@@ -5721,7 +5672,7 @@
                 "result"
               ]
             },
-            "description": "The test's last 20 runs in the period, oldest first. Empty when it has none."
+            "description": "The test's last 20 runs in the period, oldest first, including runs whose final attempt skipped (result skipped). Empty when it has none."
           },
           "branches": {
             "type": "array",
