@@ -415,9 +415,20 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // descriptions; squally-get-test-metrics' description says the last 20 runs
   // include skipped ones, counted nowhere. No input schema and no other tool
   // changed - diffed against 0.2.0.
+  //
+  // 0.2.2: ac0be4f17620ae6f -> 1845c9fe0a471f4c. Re-vendored from API
+  // 1.0.0-beta.4 (squally-app 1e8fd4c, 27.09.2026). Output schemas only, all
+  // additions: squally-find-run's rows and squally-get-run's run gain cancelled
+  // (boolean) and cancellation ({source, at, byUserId} | null, source a plain
+  // string - no enum), both required; squally-get-run's tests and
+  // squally-debug-failure's attempts gain timedOut and timeoutMs (nullable,
+  // required). New descriptions on commitSha, testedRevision, status and
+  // finishedAt in those two tools, and on squally-find-run's sha and status
+  // inputs. No other input schema and no other tool changed - diffed against
+  // 0.2.1.
   assert.equal(
     digest(toolList()),
-    "ac0be4f17620ae6f",
+    "1845c9fe0a471f4c",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

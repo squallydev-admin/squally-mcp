@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.3",
+    "version": "1.0.0-beta.4",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Settings → API keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -382,7 +382,7 @@
             "name": "sha",
             "in": "query",
             "required": false,
-            "description": "A commit SHA or a prefix of one (4-40 hex characters). Matches the run's commit or its tested revision (a pull request's head behind a merge commit).",
+            "description": "A commit SHA or a prefix of one (4-40 hex characters). Matches the run's commitSha - the commit the run is reported under: the pushed commit, or for a pull request its head - or its testedRevision, the application revision the run was told it tested (opt-in, usually null).",
             "schema": {
               "type": "string",
               "pattern": "^[0-9a-fA-F]{4,40}$"
@@ -392,7 +392,7 @@
             "name": "status",
             "in": "query",
             "required": false,
-            "description": "Only runs with this outcome.",
+            "description": "Only runs with this outcome. A cancelled run matches neither value - only the unfiltered list has it.",
             "schema": {
               "type": "string",
               "enum": [
@@ -474,6 +474,8 @@
                       "testedRevision": null,
                       "pullRequestNumber": null,
                       "status": "passed",
+                      "cancelled": false,
+                      "cancellation": null,
                       "startedAt": "2026-09-24T07:31:12.000Z",
                       "finishedAt": "2026-09-24T07:39:47.000Z",
                       "durationMs": 515000,
@@ -497,6 +499,8 @@
                       "testedRevision": "c4f7a1e9b3d5c8e2f0a6b4d9e1c7f3a5b8d2e0f6",
                       "pullRequestNumber": 318,
                       "status": "failed",
+                      "cancelled": false,
+                      "cancellation": null,
                       "startedAt": "2026-09-23T16:05:40.000Z",
                       "finishedAt": "2026-09-23T16:12:02.000Z",
                       "durationMs": 382000,
@@ -505,6 +509,32 @@
                         "passed": 401,
                         "failed": 2,
                         "skipped": 2,
+                        "flaky": 0
+                      },
+                      "shards": null
+                    },
+                    {
+                      "id": "e4a9c2f7-1b6d-4e83-9f05-7c3b8d1a2e69",
+                      "runNumber": 1282,
+                      "branch": "feature/saved-carts",
+                      "commitSha": "5f1d9b3e7a2c6e0f8b4d2a9c7e1f5b3d8a6c0e4f",
+                      "testedRevision": null,
+                      "pullRequestNumber": 318,
+                      "status": "failed",
+                      "cancelled": true,
+                      "cancellation": {
+                        "source": "reporter",
+                        "at": "2026-09-23T15:58:31.000Z",
+                        "byUserId": null
+                      },
+                      "startedAt": "2026-09-23T15:55:02.000Z",
+                      "finishedAt": "2026-09-23T15:58:31.000Z",
+                      "durationMs": 209000,
+                      "counts": {
+                        "total": 164,
+                        "passed": 157,
+                        "failed": 1,
+                        "skipped": 6,
                         "flaky": 0
                       },
                       "shards": null
@@ -801,6 +831,8 @@
                     "pullRequestTitle": null,
                     "ciProvider": "github-actions",
                     "status": "passed",
+                    "cancelled": false,
+                    "cancellation": null,
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "durationMs": 515000,
@@ -839,6 +871,8 @@
                       "errorMessage": null,
                       "fingerprint": null,
                       "browserName": "chromium",
+                      "timedOut": false,
+                      "timeoutMs": 30000,
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
@@ -853,6 +887,8 @@
                       "errorMessage": null,
                       "fingerprint": null,
                       "browserName": "chromium",
+                      "timedOut": false,
+                      "timeoutMs": 30000,
                       "shard": {
                         "index": 2,
                         "runId": "e4a9d3f0-2b6c-4178-a5d1-9f0e3c7b8a26"
@@ -1132,6 +1168,8 @@
                       "label": "first try",
                       "status": "failed",
                       "durationMs": 6210,
+                      "timedOut": false,
+                      "timeoutMs": 30000,
                       "browserName": "chromium",
                       "errors": [
                         {
@@ -1156,6 +1194,8 @@
                       "label": "retry #1",
                       "status": "passed",
                       "durationMs": 1840,
+                      "timedOut": false,
+                      "timeoutMs": 30000,
                       "browserName": "chromium",
                       "errors": [],
                       "copyPrompt": null,
@@ -2740,6 +2780,8 @@
                       "startedAt": "2026-09-24T07:31:12.000Z",
                       "status": "passed",
                       "durationMs": 1840,
+                      "timedOut": false,
+                      "timeoutMs": 30000,
                       "attempts": 2,
                       "wastedMs": 6210
                     },
@@ -2751,6 +2793,8 @@
                       "startedAt": "2026-09-23T16:05:40.000Z",
                       "status": "passed",
                       "durationMs": 1795,
+                      "timedOut": null,
+                      "timeoutMs": null,
                       "attempts": 1,
                       "wastedMs": 0
                     }
@@ -4396,7 +4440,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The commit the run is reported under: the pushed commit, or for a pull request its head commit. The commit the GitHub check and the commit links use."
                 },
                 "testedRevision": {
                   "anyOf": [
@@ -4406,7 +4451,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The application revision the run was told it tested - opt-in, null unless the CI job sets it: TESTED_REVISION=<revision>, or SAME_REPO_AS_APP=true for the commit CI built (on a pull request, the merge commit). Never the pull request's head - that is commitSha."
                 },
                 "pullRequestNumber": {
                   "anyOf": [
@@ -4426,7 +4472,57 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "passed | failed | running | incomplete - for a sharded run, the whole group's. Never \"cancelled\": a cancelled run keeps the outcome of what it reported, and says so in cancelled."
+                },
+                "cancelled": {
+                  "type": "boolean",
+                  "description": "True when the run was cancelled - for a sharded run, when any shard recorded a cancel. A cancelled run keeps its status (the outcome of what it reported before the stop) and never matches ?status=passed or ?status=failed."
+                },
+                "cancellation": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Where the cancel came from: \"reporter\" (Playwright was interrupted - a cancelled CI job, a Ctrl-C - and the reporter said so), \"cli\" or \"user\" (the dashboard). A plain string, not a closed set: new sources may be added. null only for a cancel recorded without a source, which Squally never writes."
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When the run was cancelled. For a sharded run, the first shard to record it."
+                        },
+                        "byUserId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The user who cancelled the run, when source is \"user\"; null otherwise."
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "at",
+                        "byUserId"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "How and when the run was cancelled; null when it was not."
                 },
                 "startedAt": {
                   "type": "string",
@@ -4441,7 +4537,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "When the run finished - for a sharded run, its latest shard. null while it is still running. A cancelled run has finished: it ends at the latest shard that reported, even when a shard stopped by the same cancel never did."
                 },
                 "durationMs": {
                   "anyOf": [
@@ -4519,6 +4616,8 @@
                 "testedRevision",
                 "pullRequestNumber",
                 "status",
+                "cancelled",
+                "cancellation",
                 "startedAt",
                 "finishedAt",
                 "durationMs",
@@ -4608,7 +4707,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "The commit the run is reported under: the pushed commit, or for a pull request its head commit. The commit the GitHub check and the commit links use."
               },
               "commitMessage": {
                 "anyOf": [
@@ -4638,7 +4738,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "The application revision the run was told it tested - opt-in, null unless the CI job sets it: TESTED_REVISION=<revision>, or SAME_REPO_AS_APP=true for the commit CI built (on a pull request, the merge commit). Never the pull request's head - that is commitSha."
               },
               "pullRequestNumber": {
                 "anyOf": [
@@ -4671,7 +4772,57 @@
                 ]
               },
               "status": {
-                "type": "string"
+                "type": "string",
+                "description": "passed | failed | running | incomplete - the whole group's. Never \"cancelled\": a cancelled run keeps the outcome of what it reported, and says so in cancelled."
+              },
+              "cancelled": {
+                "type": "boolean",
+                "description": "True when the run was cancelled - for a sharded run, when any shard recorded a cancel. A cancelled run keeps its status (the outcome of what it reported before the stop) and never matches ?status=passed or ?status=failed."
+              },
+              "cancellation": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Where the cancel came from: \"reporter\" (Playwright was interrupted - a cancelled CI job, a Ctrl-C - and the reporter said so), \"cli\" or \"user\" (the dashboard). A plain string, not a closed set: new sources may be added. null only for a cancel recorded without a source, which Squally never writes."
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the run was cancelled. For a sharded run, the first shard to record it."
+                      },
+                      "byUserId": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The user who cancelled the run, when source is \"user\"; null otherwise."
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "at",
+                      "byUserId"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How and when the run was cancelled; null when it was not."
               },
               "startedAt": {
                 "type": "string",
@@ -4686,7 +4837,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "When the run finished - for a sharded run, its latest shard. null while it is still running. A cancelled run has finished: it ends at the latest shard that reported, even when a shard stopped by the same cancel never did."
               },
               "durationMs": {
                 "anyOf": [
@@ -4777,6 +4929,8 @@
               "pullRequestTitle",
               "ciProvider",
               "status",
+              "cancelled",
+              "cancellation",
               "startedAt",
               "finishedAt",
               "durationMs",
@@ -4875,6 +5029,28 @@
                     }
                   ]
                 },
+                "timedOut": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The final attempt's. Whether the attempt ended by running into its time limit (Playwright's timedOut). null when the reporter did not say - every result from a reporter before 0.10.0."
+                },
+                "timeoutMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The final attempt's. The time limit Playwright applied to the attempt, in milliseconds; 0 means no limit. null when the reporter did not say."
+                },
                 "shard": {
                   "anyOf": [
                     {
@@ -4914,6 +5090,8 @@
                 "errorMessage",
                 "fingerprint",
                 "browserName",
+                "timedOut",
+                "timeoutMs",
                 "shard"
               ]
             }
@@ -5015,6 +5193,28 @@
                       "type": "null"
                     }
                   ]
+                },
+                "timedOut": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Whether the attempt ended by running into its time limit (Playwright's timedOut). null when the reporter did not say - every result from a reporter before 0.10.0."
+                },
+                "timeoutMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The time limit Playwright applied to the attempt, in milliseconds; 0 means no limit. null when the reporter did not say."
                 },
                 "browserName": {
                   "anyOf": [
@@ -5156,6 +5356,8 @@
                 "label",
                 "status",
                 "durationMs",
+                "timedOut",
+                "timeoutMs",
                 "browserName",
                 "errors",
                 "copyPrompt",
@@ -5840,7 +6042,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The application revision the run was told it tested - opt-in, null unless the CI job sets it: TESTED_REVISION=<revision>, or SAME_REPO_AS_APP=true for the commit CI built (on a pull request, the merge commit). Never the pull request's head - that is commitSha."
                 },
                 "startedAt": {
                   "type": "string",
@@ -5859,6 +6062,28 @@
                     }
                   ]
                 },
+                "timedOut": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The final attempt's. Whether the attempt ended by running into its time limit (Playwright's timedOut). null when the reporter did not say - every result from a reporter before 0.10.0."
+                },
+                "timeoutMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The final attempt's. The time limit Playwright applied to the attempt, in milliseconds; 0 means no limit. null when the reporter did not say."
+                },
                 "attempts": {
                   "type": "integer"
                 },
@@ -5874,6 +6099,8 @@
                 "startedAt",
                 "status",
                 "durationMs",
+                "timedOut",
+                "timeoutMs",
                 "attempts",
                 "wastedMs"
               ]
@@ -6568,7 +6795,8 @@
                 "failed",
                 "durationMs"
               ]
-            }
+            },
+            "description": "The last 20 runs on branchScope, oldest first - the dashboard's Runs and Run duration charts. Cancelled runs are left out, every shard of a cancelled CI run included."
           }
         },
         "required": [

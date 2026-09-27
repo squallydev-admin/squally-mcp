@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.2.2 — requires API 1.0.0-beta.4; cancelled runs and attempt timeouts
+
+**This version requires the read API 1.0.0-beta.4.** Its output schemas
+require the fields that version added, so against an older API a client that
+validates structured output (the MCP SDK's does) rejects the responses of
+`squally-find-run`, `squally-get-run` and `squally-debug-failure`. 0.2.1 keeps
+working against beta.4: it ignores the added fields.
+
+### Changed
+
+- `squally-find-run` (each run) and `squally-get-run` (`run`): `cancelled`
+  (boolean) and `cancellation` (`source`, `at`, `byUserId`, or `null`).
+  - A cancelled run keeps its `status` - `passed` or `failed`, or `running` /
+    `incomplete` while a shard stopped by the same cancel is still open.
+    `status` never says `cancelled`.
+  - `source` is `reporter`, `cli` or `user`. In the output schema it is a
+    plain string, not an enum, so a source added later does not break
+    validation.
+- `squally-get-run` (each test, its final attempt) and `squally-debug-failure`
+  (each attempt): `timedOut` (boolean or `null`) and `timeoutMs` (integer or
+  `null`). `null` means the reporter did not say (squally-reporter before
+  0.10.0); `timeoutMs` 0 means no limit.
+- New descriptions from the API:
+  - `commitSha` is the commit the run is reported under - the pushed commit,
+    or for a pull request its head;
+  - `testedRevision` is the application revision the run was told it
+    tested - opt-in, and never the pull request's head;
+  - `squally-find-run`'s `sha` argument matches either of the two, and its
+    `status` argument matches no cancelled run.
+- The vendored OpenAPI document is 1.0.0-beta.4.
+
+Changed by the API underneath, with nothing to do in this package: a
+cancelled run's `finishedAt` and `durationMs` end at its latest finished
+shard; `squally-debug-failure`'s `copyPrompt` names a timeout ("Timed out at
+its N ms limit"); `squally-list-errors` reports `Timeout Issues` for an error
+whose example attempt ran into its limit, for results from squally-reporter
+0.10.0 on.
+
+No tool was added or removed, and no other input schema changed.
+
 ## 0.2.1 — requires API 1.0.0-beta.3; skipped in recentResults
 
 **This version requires the read API 1.0.0-beta.3.** From that version on, a
