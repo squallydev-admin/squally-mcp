@@ -151,7 +151,7 @@ the tool descriptions say so, and the server repeats it in its instructions.
 ### What the numbers mean
 
 The two test tools count **completed CI runs** in the period (7, 14, 30 or 90
-days; 14 by default), on every branch unless you name one — without runs where
+days; 30 by default), on every branch unless you name one — without runs where
 most of the suite failed at once. Local runs never count. Per test:
 
 - **stability** — runs that passed on the first try ÷ runs;
@@ -168,12 +168,12 @@ healthy. The tools return the numbers; the agent — or you — judges them.
 { "projectId": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15", "perPage": 3 }
 ```
 
-The three least stable tests of the last 14 days (abridged):
+The three least stable tests of the last 30 days (abridged):
 
 ```json
 {
   "population": "ci_completed_not_excluded",
-  "days": 14,
+  "days": 30,
   "sort": "stability",
   "total": 409,
   "items": [
@@ -204,7 +204,7 @@ The same numbers as that test's row, for one test (abridged):
 
 ```json
 {
-  "days": 14,
+  "days": 30,
   "branch": null,
   "runs": 8,
   "stableRuns": 4,

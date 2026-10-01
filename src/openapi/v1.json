@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.4",
-    "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Settings → API keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
+    "version": "1.0.0-beta.5",
+    "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
     {
@@ -31,7 +31,7 @@
     },
     {
       "name": "Errors",
-      "description": "Failures grouped by error signature."
+      "description": "The project's errors: failures that share a fingerprint, one entry each."
     },
     {
       "name": "Project",
@@ -64,21 +64,21 @@
       "code": "invalid_key",
       "status": 401,
       "when": "Invalid read key.",
-      "action": "Check the key for typos or create a new one in Settings → API keys; do not retry.",
+      "action": "Check the key for typos or create a new one in Organization › Read keys; do not retry.",
       "hasBody": true
     },
     {
       "code": "key_expired",
       "status": 401,
-      "when": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
-      "action": "Create a new read key in Settings → API keys; keys are not renewed.",
+      "when": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
+      "action": "Create a new read key in Organization › Read keys; keys are not renewed.",
       "hasBody": true
     },
     {
       "code": "key_revoked",
       "status": 401,
       "when": "This read key has been revoked.",
-      "action": "Create a new read key in Settings → API keys; this one will not work again.",
+      "action": "Create a new read key in Organization › Read keys; this one will not work again.",
       "hasBody": true
     },
     {
@@ -91,7 +91,7 @@
     {
       "code": "wrong_key_type",
       "status": 401,
-      "when": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+      "when": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
       "action": "Use an organization read key (sqly_ro_…), not a project ingest key; do not retry.",
       "hasBody": true
     },
@@ -226,7 +226,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -247,7 +247,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -630,7 +630,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -651,7 +651,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -938,7 +938,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -959,7 +959,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -1183,7 +1183,7 @@
                           }
                         }
                       ],
-                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed - a flaky run.\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 14 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
+                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed - a flaky run.\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 30 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
@@ -1284,7 +1284,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -1305,7 +1305,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -1528,7 +1528,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -1549,7 +1549,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -1702,7 +1702,7 @@
                 30,
                 90
               ],
-              "default": 14
+              "default": 30
             }
           },
           {
@@ -1798,8 +1798,8 @@
                     "name": "storefront-web"
                   },
                   "population": "ci_completed_not_excluded",
-                  "days": 14,
-                  "since": "2026-09-10T08:00:00.000Z",
+                  "days": 30,
+                  "since": "2026-08-25T08:00:00.000Z",
                   "until": "2026-09-24T08:00:00.000Z",
                   "branch": null,
                   "browser": null,
@@ -2137,7 +2137,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -2158,7 +2158,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -2329,7 +2329,7 @@
                 30,
                 90
               ],
-              "default": 14
+              "default": 30
             }
           },
           {
@@ -2363,8 +2363,8 @@
                     "name": "storefront-web"
                   },
                   "population": "ci_completed_not_excluded",
-                  "days": 14,
-                  "since": "2026-09-10T08:00:00.000Z",
+                  "days": 30,
+                  "since": "2026-08-25T08:00:00.000Z",
                   "until": "2026-09-24T08:00:00.000Z",
                   "branch": null,
                   "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
@@ -2540,7 +2540,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -2561,7 +2561,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -2886,7 +2886,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -2907,7 +2907,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -3040,8 +3040,8 @@
     "/projects/{projectId}/errors": {
       "get": {
         "operationId": "listErrors",
-        "summary": "List error groups",
-        "description": "List error signatures. Failures grouped by error signature in a period, most frequent first. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query.",
+        "summary": "List errors",
+        "description": "List errors. The project's errors in a period - failures grouped by fingerprint - most frequent first. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query.",
         "tags": [
           "Errors"
         ],
@@ -3234,7 +3234,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -3255,7 +3255,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -3380,8 +3380,8 @@
     "/projects/{projectId}/errors/{fingerprint}": {
       "get": {
         "operationId": "getError",
-        "summary": "Get an error group",
-        "description": "Get an error signature. One error signature: its counts, the tests it hits and the runs it occurred in. A signature quiet in the period is answered over everything still stored (windowEmpty: true). Moderate.",
+        "summary": "Get an error",
+        "description": "Get an error. One error: its counts, the tests it hits and the runs it occurred in. An error quiet in the period is answered over everything still stored (windowEmpty: true). Moderate.",
         "tags": [
           "Errors"
         ],
@@ -3399,7 +3399,7 @@
             "name": "fingerprint",
             "in": "path",
             "required": true,
-            "description": "An error signature fingerprint from GET /projects/{projectId}/errors.",
+            "description": "An error's fingerprint, from GET /projects/{projectId}/errors.",
             "schema": {
               "type": "string",
               "pattern": "^[0-9A-Za-z_-]{1,128}$"
@@ -3562,7 +3562,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -3583,7 +3583,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -3935,7 +3935,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -3956,7 +3956,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -4171,7 +4171,7 @@
                   "key_expired": {
                     "summary": "key_expired",
                     "value": {
-                      "error": "This read key expired on 2026-09-01. Create a new one in Settings > API keys.",
+                      "error": "This read key expired on 2026-09-01. Create a new one in Organization › Read keys.",
                       "code": "key_expired"
                     }
                   },
@@ -4192,7 +4192,7 @@
                   "wrong_key_type": {
                     "summary": "wrong_key_type",
                     "value": {
-                      "error": "This is a project ingest key. Read routes need an organization read key - Settings > API keys.",
+                      "error": "This is a project ingest key. Read routes need an organization read key - Organization › Read keys.",
                       "code": "wrong_key_type"
                     }
                   }
@@ -4321,7 +4321,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "sqly_ro_…",
-        "description": "An organization read key (sqly_ro_…), created by an organization admin in Settings → API keys. Expires after 30, 60, 90, 180 days; no renewal."
+        "description": "An organization read key (sqly_ro_…), created by an organization admin in Organization › Read keys. Expires after 30, 60, 90, 180 days; no renewal."
       }
     },
     "headers": {

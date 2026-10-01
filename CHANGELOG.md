@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.3 — vendored API 1.0.0-beta.5: squally-list-tests and squally-get-test-metrics default to 30 days (was 14)
+
+**No new minimum API version.** 0.2.3 works against the read API 1.0.0-beta.4
+and beta.5 alike, as 0.2.2 does. The tools leave every default to the API, so
+against beta.4 a call without `days` still covers 14 days; against beta.5 it
+covers 30.
+
+### Changed
+
+- `squally-list-tests` and `squally-get-test-metrics`: the `days` argument's
+  default is `30` in the input schema, where it was `14` - read API
+  1.0.0-beta.5 made 30 the default of every endpoint. The allowed values
+  (7, 14, 30, 90) are unchanged. To keep the old window, pass `days: 14`.
+- The vendored OpenAPI document is 1.0.0-beta.5. It also carries two text-only
+  changes the API made under beta.4: the errors tag describes errors rather
+  than error signatures, and the error texts and hints name
+  "Organization › Read keys" where they said "Settings > API keys".
+
+Changed by the API underneath, with nothing to do in this package:
+`squally-debug-failure`'s `copyPrompt` reads "Last 30 days on CI: …" where it
+read "Last 14 days on CI: …".
+
+No tool was added or removed, and no other input or output schema changed.
+
 ## 0.2.2 — requires API 1.0.0-beta.4; cancelled runs and attempt timeouts
 
 **This version requires the read API 1.0.0-beta.4.** Its output schemas

@@ -239,8 +239,8 @@ test("path parameters are all required, query parameters never are", () => {
 test("enums, defaults and bounds survive from the document into the input schema", () => {
   const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
   const runs = byName["squally-find-run"].inputSchema.properties;
-  // 14 joined the periods with API 1.0.0-beta.2; the runs list's default is
-  // still 30.
+  // 14 joined the periods with API 1.0.0-beta.2. Since 1.0.0-beta.5 every
+  // period defaults to 30.
   assert.deepEqual(runs.days.enum, [7, 14, 30, 90]);
   assert.equal(runs.days.default, 30);
   assert.deepEqual(runs.status.enum, ["passed", "failed"]);
@@ -251,7 +251,7 @@ test("enums, defaults and bounds survive from the document into the input schema
   // model gave and leaves every default to the API.
   const tests = byName["squally-list-tests"].inputSchema.properties;
   assert.deepEqual(tests.days.enum, [7, 14, 30, 90]);
-  assert.equal(tests.days.default, 14);
+  assert.equal(tests.days.default, 30);
   assert.deepEqual(tests.sort.enum, ["stability", "flakyRate", "failureRate", "runs", "timeLost"]);
   assert.equal(tests.sort.default, "stability");
   assert.equal(tests.page.minimum, 1);
@@ -265,7 +265,7 @@ test("enums, defaults and bounds survive from the document into the input schema
 
   const metrics = byName["squally-get-test-metrics"].inputSchema.properties;
   assert.deepEqual(metrics.days.enum, [7, 14, 30, 90]);
-  assert.equal(metrics.days.default, 14);
+  assert.equal(metrics.days.default, 30);
   // An empty filePath is a value (a test with no file), so nothing may forbid it.
   assert.equal(metrics.filePath.minLength, undefined);
 });
@@ -426,9 +426,15 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // finishedAt in those two tools, and on squally-find-run's sha and status
   // inputs. No other input schema and no other tool changed - diffed against
   // 0.2.1.
+  //
+  // 0.2.3: 1845c9fe0a471f4c -> 135a1d30948cf94c. Re-vendored from API
+  // 1.0.0-beta.5 (squally-app 215e6c5, 01.10.2026). Two values, both input
+  // schemas: the `days` default of squally-list-tests and
+  // squally-get-test-metrics is 30, where it was 14. No output schema, no
+  // description and no other tool changed - diffed against 0.2.2.
   assert.equal(
     digest(toolList()),
-    "1845c9fe0a471f4c",
+    "135a1d30948cf94c",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
