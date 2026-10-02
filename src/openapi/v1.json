@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.6",
+    "version": "1.0.0-beta.7",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -3799,11 +3799,14 @@
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "total": 412,
-                    "passed": 408,
+                    "passed": 404,
+                    "flaky": 4,
                     "failed": 0,
+                    "skipped": 4,
                     "isFallbackBranch": false
                   },
                   "runsInWindow": 11,
+                  "unfinishedRuns": 1,
                   "suiteSize": 412,
                   "windowStability": 99,
                   "timeLost": {
@@ -6551,7 +6554,8 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The run's id as GET /projects/{projectId}/runs gives it - one id for all its shards."
                   },
                   "runNumber": {
                     "type": "integer"
@@ -6574,11 +6578,13 @@
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "The run's status over all its shards: passed or failed."
                   },
                   "startedAt": {
                     "type": "string",
-                    "format": "date-time"
+                    "format": "date-time",
+                    "description": "Its first shard's start."
                   },
                   "finishedAt": {
                     "anyOf": [
@@ -6589,16 +6595,27 @@
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Its last shard's finish."
                   },
                   "total": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Tests in the run, every test once over all shards: passed + flaky + failed + skipped."
                   },
                   "passed": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Tests that passed on the first try."
+                  },
+                  "flaky": {
+                    "type": "integer",
+                    "description": "Tests that passed after a retry (since 1.0.0-beta.7)."
                   },
                   "failed": {
                     "type": "integer"
+                  },
+                  "skipped": {
+                    "type": "integer",
+                    "description": "Since 1.0.0-beta.7."
                   },
                   "isFallbackBranch": {
                     "type": "boolean"
@@ -6613,21 +6630,29 @@
                   "finishedAt",
                   "total",
                   "passed",
+                  "flaky",
                   "failed",
+                  "skipped",
                   "isFallbackBranch"
                 ]
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The newest finished CI run on branchScope, whatever the window - falling back to any branch when the stable branch has none."
           },
           "runsInWindow": {
             "type": "integer",
-            "description": "Completed CI runs in the window on branchScope, without mass-failure runs - the runs windowStability is counted over."
+            "description": "Finished CI runs in the window on branchScope, each counted once however many shards it had, by the start of its first shard; mass-failure and cancelled runs included. The runs windowStability is counted over."
+          },
+          "unfinishedRuns": {
+            "type": "integer",
+            "description": "CI runs of the window on branchScope that have not finished - a shard still running, timed out or never reported. In no other figure (since 1.0.0-beta.7)."
           },
           "suiteSize": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The largest run in the window, every test once over all its shards."
           },
           "windowStability": {
             "anyOf": [
@@ -6638,7 +6663,7 @@
                 "type": "null"
               }
             ],
-            "description": "Suite stability, 0-100: of the final test results in the window's completed CI runs on branchScope (mass-failure runs and skipped results left out), the share that passed on the first try, rounded. A result that passed only after a retry counts against it. null when no such result exists."
+            "description": "Suite stability, 0-100: of the final test results in the window's finished CI runs on branchScope (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists."
           },
           "timeLost": {
             "type": "object",
@@ -6668,7 +6693,8 @@
               "lostPercent",
               "wastedAttempts",
               "wallClockMs"
-            ]
+            ],
+            "description": "Time spent on attempts a later retry superseded, in the window's finished CI runs on branchScope; wallClockMs is the CI time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
           },
           "failingTests": {
             "type": "object",
@@ -6684,7 +6710,7 @@
               "failing",
               "testsRun"
             ],
-            "description": "Tests that failed at least once in the window on branchScope, out of the tests those runs reported - every run, local ones included. Not the dashboard's Failing tests tile: that is testMetrics.failingTests, over CI runs on every branch."
+            "description": "Tests whose final attempt failed in at least one of the window's finished CI runs on branchScope, out of the tests those runs reported (a skipped test counts as reported). Local runs no longer count (since 1.0.0-beta.7)."
           },
           "testMetrics": {
             "type": "object",
@@ -6718,7 +6744,7 @@
               "failingTests",
               "ciTests"
             ],
-            "description": "The dashboard's Tests with retries and Failing tests tiles and their denominator, counted like /tests: CI runs only, every branch - not narrowed by branchScope. The top-level failingTests counts differently: every run in the window on branchScope, local ones included."
+            "description": "The dashboard's Tests with retries and Failing tests tiles and their denominator, counted like /tests on branchScope (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
           },
           "slowestTests": {
             "type": "array",
@@ -6751,7 +6777,8 @@
                 "medianMs",
                 "runs"
               ]
-            }
+            },
+            "description": "Up to 5 tests by the median of their final-attempt durations, one per run, at least 3 runs; skipped results left out."
           },
           "timeSinks": {
             "type": "array",
@@ -6780,7 +6807,8 @@
                 "filePath",
                 "lostMs"
               ]
-            }
+            },
+            "description": "Up to 5 tests by the time their superseded attempts cost in the window (at least a second each), worst first."
           },
           "runsSeries": {
             "type": "array",
@@ -6814,7 +6842,7 @@
                 "durationMs"
               ]
             },
-            "description": "The last 20 runs on branchScope, oldest first - the dashboard's Runs and Run duration charts. Cancelled runs are left out, every shard of a cancelled CI run included."
+            "description": "The last 30 finished CI runs on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled runs are left out."
           }
         },
         "required": [
@@ -6824,6 +6852,7 @@
           "stableBranch",
           "lastRun",
           "runsInWindow",
+          "unfinishedRuns",
           "suiteSize",
           "windowStability",
           "timeLost",

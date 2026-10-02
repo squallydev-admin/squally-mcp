@@ -113,7 +113,8 @@ export const TOOLS: ToolDefinition[] = [
       "never counted in runs or any rate) and the branches it ran on. Counts the CI runs of " +
       "the period whose shards all finished - a sharded run counts once, by its first " +
       "shard's start - without runs that were a mass failure as a whole; local runs never " +
-      "count. There is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
+      "count, and a run still in progress counts once all its shards have finished. There " +
+      "is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
       "with null rates is a valid answer: no counted CI run of this test in the period. " +
       "Cheap; for one test use this, not squally-list-tests.",
     answers: "One test's stability, flaky rate and failure rate over a period.",

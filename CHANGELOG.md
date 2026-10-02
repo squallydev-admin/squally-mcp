@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — vendored API 1.0.0-beta.7; the metric texts say runs in progress are not counted
+
+**No new minimum API version.** This works against the read API
+1.0.0-beta.6 and beta.7 alike: beta.7 leaves every operation a tool calls
+unchanged - same parameters, same output schemas, same `population`
+(`"ci_groups_finished_not_mass_failure"`). app.squally.dev serves beta.7.
+
+### Changed
+
+- `squally-get-test-metrics` and the server instructions say that a run still
+  in progress counts once all its shards have finished - the newest run is
+  missing from the numbers until then. Nothing about what is counted changed.
+- The vendored OpenAPI document is 1.0.0-beta.7. Its changes are all in
+  `GET /projects/{projectId}/overview`, which no tool calls: the new
+  `unfinishedRuns`, `lastRun.flaky` and `lastRun.skipped`, `testMetrics`
+  following `branchScope`, and `runsInWindow` / `windowStability` counting a
+  sharded run once, mass failures included.
+
+No tool was added or removed, and no input or output schema changed.
+
 ## 0.3.0 — breaking: requires API 1.0.0-beta.6; a sharded CI run counts once in the test metrics
 
 **This version requires the read API 1.0.0-beta.6.** The output schemas of
