@@ -81,7 +81,7 @@ for (const tool of TOOLS) {
 }
 
 test("squally-get-test-metrics: runs = 0 with null rates is a valid answer, not an error", async () => {
-  // A test with results but no completed CI run in the period - the document
+  // A test with results but no counted CI run in the period - the document
   // describes the case but gives no example of it, so it is derived from the
   // one it gives: zero counts, null rates, nothing recent, no branch to name.
   const quiet = {

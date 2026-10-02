@@ -13,13 +13,18 @@
 // fractions of runs and nothing more; saying so here stops a model from
 // presenting a rate as Squally's judgement.
 //
+// ONE RUN PER CI RUN SINCE 0.3.0 (API 1.0.0-beta.6): the population is the CI
+// runs whose shards all finished, each counted once ("ci_groups_finished_not_
+// mass_failure"); it was every completed shard on its own.
+//
 // Exported as `squally-mcp/instructions` (package.json), so it stays a plain
 // constant - test/exports.test.js imports it through the package name.
 export const INSTRUCTIONS = [
   "Start with squally-list-projects; every other tool needs a projectId from it.",
   "For one test, use squally-get-test-metrics, not squally-list-tests.",
-  "Test metrics count completed CI runs in the period, without runs where most of the",
-  "suite failed at once; local runs never count. stability = runs that passed on the",
+  "Test metrics count the CI runs of the period whose shards all finished - a sharded",
+  "run counts once - without runs that were a mass failure as a whole; local runs never",
+  "count. stability = runs that passed on the",
   "first try / runs; flakyRate = runs that passed only after a retry / runs;",
   "failureRate = failed runs / runs. There is no verdict: the tools return numbers,",
   "and you judge them. If a test name is ambiguous, repeat with filePath from the",

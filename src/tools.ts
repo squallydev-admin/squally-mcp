@@ -108,13 +108,14 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "One test's numbers over a period: runs, stability (runs that passed on the first try " +
       "/ runs), flakyRate (runs that passed only after a retry / runs), failureRate (failed " +
-      "runs / runs), time lost to retries and failures, its last 20 runs (runs it skipped " +
-      "included, as result \"skipped\" - shown, never counted in runs or any rate) and the " +
-      "branches it ran on. Counts completed CI runs of the period, without runs where most " +
-      "of the suite failed at once; local runs never count. There is no verdict - the tool " +
-      "returns the numbers and you judge them. runs = 0 with null rates is a valid answer: " +
-      "no completed CI run of this test in the period. Cheap; for one test use this, not " +
-      "squally-list-tests.",
+      "runs / runs), time lost to retries and failures, its last 20 runs (each with the run " +
+      "id squally-find-run gives; runs it skipped included, as result \"skipped\" - shown, " +
+      "never counted in runs or any rate) and the branches it ran on. Counts the CI runs of " +
+      "the period whose shards all finished - a sharded run counts once, by its first " +
+      "shard's start - without runs that were a mass failure as a whole; local runs never " +
+      "count. There is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
+      "with null rates is a valid answer: no counted CI run of this test in the period. " +
+      "Cheap; for one test use this, not squally-list-tests.",
     answers: "One test's stability, flaky rate and failure rate over a period.",
     cost: "cheap",
   },
@@ -123,7 +124,7 @@ export const TOOLS: ToolDefinition[] = [
     title: "List tests",
     operationId: "listTests",
     description:
-      "Every test with a completed CI run in the period, with the same numbers per test as " +
+      "Every test with a counted CI run in the period, with the same numbers per test as " +
       "squally-get-test-metrics - runs, stability, flakyRate, failureRate, time lost - ranked " +
       "worst first by the chosen sort (default: lowest stability). There is no verdict and no " +
       "status - the tool labels no test; you judge the numbers. Moderate - two queries over " +

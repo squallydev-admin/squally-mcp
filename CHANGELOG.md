@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.0 — breaking: requires API 1.0.0-beta.6; a sharded CI run counts once in the test metrics
+
+**This version requires the read API 1.0.0-beta.6.** The output schemas of
+`squally-get-test-metrics` and `squally-list-tests` pin `population` to the
+new value, so against an older API a client that validates structured output
+(the MCP SDK's does) rejects their responses. 0.2.3 against beta.6 fails the
+same way, the other way round. app.squally.dev serves beta.6.
+
+### Changed
+
+- `squally-get-test-metrics` and `squally-list-tests`: `population` is
+  `"ci_groups_finished_not_mass_failure"`, was `"ci_completed_not_excluded"`.
+  Counted are the CI runs of the period whose shards all finished - a sharded
+  run counts once, placed in the period by its first shard's start - without
+  runs that were a mass failure as a whole. It was every completed shard on
+  its own.
+- In both tools, `runs`, `stableRuns`, `flakyRuns`, `failedRuns` and the rates
+  count per run, however many shards it had. Unchanged for a test that ran in
+  one shard per run.
+- `recentResults[].runId` is the run's id as `squally-find-run` gives it - one
+  per run. It was the id of the shard the test ran in. A test that a
+  cancellation interrupted no longer appears as `skipped`.
+- Both tools' descriptions and the server instructions say what is counted
+  now, and `squally-get-test-metrics` says its recent runs carry the
+  `squally-find-run` run id.
+- The vendored OpenAPI document is 1.0.0-beta.6. Its new
+  `occurrences[].local` and `occurrences[].counted` belong to the test-history
+  endpoint, which no tool calls.
+
+No tool was added or removed, and no input schema changed.
+
 ## 0.2.3 — vendored API 1.0.0-beta.5: squally-list-tests and squally-get-test-metrics default to 30 days (was 14)
 
 **No new minimum API version.** 0.2.3 works against the read API 1.0.0-beta.4

@@ -162,13 +162,16 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /stability \(runs that passed on the first try \/ runs\)/);
   assert.match(metrics, /flakyRate \(runs that passed only after a retry \/ runs\)/);
   assert.match(metrics, /failureRate \(failed runs \/ runs\)/);
-  assert.match(metrics, /completed CI runs of the period, without runs where most of the suite failed at once; local runs never count/);
+  // 0.3.0, API 1.0.0-beta.6: one run per CI run, counted once its shards have
+  // all finished; a mass failure is judged on the run as a whole.
+  assert.match(metrics, /CI runs of the period whose shards all finished - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole; local runs never count/);
+  assert.match(metrics, /each with the run id squally-find-run gives/);
   assert.match(metrics, /There is no verdict/);
   assert.match(metrics, /runs = 0 with null rates is a valid answer/);
   assert.match(metrics, /\bCheap\b/);
   // 0.2.1, API 1.0.0-beta.3: the last 20 runs include skipped ones, which the
   // numbers beside them leave out - a model that counts them gets the rates wrong.
-  assert.match(metrics, /last 20 runs \(runs it skipped included, as result "skipped" - shown, never counted in runs or any rate\)/);
+  assert.match(metrics, /last 20 runs \(each with the run id squally-find-run gives; runs it skipped included, as result "skipped" - shown, never counted in runs or any rate\)/);
 
   const list = byName["squally-list-tests"].description;
   assert.match(list, /There is no verdict/);
@@ -432,9 +435,19 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // schemas: the `days` default of squally-list-tests and
   // squally-get-test-metrics is 30, where it was 14. No output schema, no
   // description and no other tool changed - diffed against 0.2.2.
+  //
+  // 0.3.0: 135a1d30948cf94c -> f2370af299aacdde. Re-vendored from API
+  // 1.0.0-beta.6 (squally-app, 01.10.2026; Breaking). Output schemas of
+  // squally-get-test-metrics and squally-list-tests: population's const is
+  // "ci_groups_finished_not_mass_failure" (was "ci_completed_not_excluded"),
+  // with new descriptions on population, runs, recentResults[].runId and
+  // recentResults[].result. Both tools' descriptions say what is counted now
+  // (CI runs whose shards all finished, once each) and that recentResults
+  // carry the run id squally-find-run gives. No input schema and no other tool
+  // changed - diffed against 0.2.3.
   assert.equal(
     digest(toolList()),
-    "135a1d30948cf94c",
+    "f2370af299aacdde",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -446,8 +459,9 @@ test("the server identifies as squally and carries the instructions", () => {
     INSTRUCTIONS,
     "Start with squally-list-projects; every other tool needs a projectId from it. " +
       "For one test, use squally-get-test-metrics, not squally-list-tests. " +
-      "Test metrics count completed CI runs in the period, without runs where most of the " +
-      "suite failed at once; local runs never count. stability = runs that passed on the " +
+      "Test metrics count the CI runs of the period whose shards all finished - a sharded " +
+      "run counts once - without runs that were a mass failure as a whole; local runs never " +
+      "count. stability = runs that passed on the " +
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +
       "and you judge them. If a test name is ambiguous, repeat with filePath from the " +

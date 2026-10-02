@@ -150,9 +150,11 @@ the tool descriptions say so, and the server repeats it in its instructions.
 
 ### What the numbers mean
 
-The two test tools count **completed CI runs** in the period (7, 14, 30 or 90
-days; 30 by default), on every branch unless you name one — without runs where
-most of the suite failed at once. Local runs never count. Per test:
+The two test tools count **CI runs whose shards all finished** in the period
+(7, 14, 30 or 90 days; 30 by default), on every branch unless you name one. A
+sharded run counts once, placed in the period by its first shard's start; a
+run that was a mass failure as a whole is left out. Local runs never count.
+Per test:
 
 - **stability** — runs that passed on the first try ÷ runs;
 - **flakyRate** — runs that passed only after a retry ÷ runs;
@@ -172,7 +174,7 @@ The three least stable tests of the last 30 days (abridged):
 
 ```json
 {
-  "population": "ci_completed_not_excluded",
+  "population": "ci_groups_finished_not_mass_failure",
   "days": 30,
   "sort": "stability",
   "total": 409,
@@ -219,7 +221,7 @@ The same numbers as that test's row, for one test (abridged):
 
 Pass the name exactly as Squally shows it. When it exists in several spec
 files, the tool answers with the `filePath` values to retry with; a test with
-results but no completed CI run in the period answers `runs: 0` and `null`
+results but no counted CI run in the period answers `runs: 0` and `null`
 rates — an answer, not an error.
 
 ## Development
