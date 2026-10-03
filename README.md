@@ -150,10 +150,12 @@ the tool descriptions say so, and the server repeats it in its instructions.
 
 ### What the numbers mean
 
-The two test tools count **CI runs whose shards all finished** in the period
-(7, 14, 30 or 90 days; 30 by default), on every branch unless you name one. A
-sharded run counts once, placed in the period by its first shard's start; a
-run that was a mass failure as a whole is left out. Local runs count only
+The two test tools count **finished CI runs** in the period (7, 14, 30 or 90
+days; 30 by default), on every branch unless you name one. A run finishes when
+all its shards have - or, once the run timeout has passed, with the shards that
+finished, like a cancelled run. A sharded run counts once, placed in the period
+by its first shard's start; a run that was a mass failure as a whole is left
+out. Local runs count only
 when you ask for them: `source` is `ci` (the default), `local` or `all`, and
 the response's `population` names which runs it counted. Per test:
 

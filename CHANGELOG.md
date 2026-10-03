@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+**No new minimum API version.** 0.4.0 and this work against the read API
+1.0.0-beta.9 and beta.10 alike: beta.10 changed what the numbers count, not a
+field or a value, so no output schema rejects either.
+
+### Changed
+
+- The vendored OpenAPI document is 1.0.0-beta.10. A run whose shard died or
+  never started now counts once the run timeout has passed, with the shards
+  that finished, like a cancelled run. The output-schema descriptions of
+  `population` (all three tools that return it) and `unfinishedRuns`
+  (`squally-list-errors`) say so.
+- `squally-get-test-metrics`' description and the server instructions say the
+  same: a run still in progress counts once all its shards have finished, or
+  once the run timeout has passed. They said only the first.
+
+No tool was added or removed, and no input or output schema changed shape.
+
 ## 0.4.0 — breaking: requires API 1.0.0-beta.9; local runs on request, errors counted per run
 
 **This version requires the read API 1.0.0-beta.9.** The output schema of

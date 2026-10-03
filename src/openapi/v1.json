@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.9",
+    "version": "1.0.0-beta.10",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -5552,7 +5552,7 @@
               "local_groups_finished_not_mass_failure",
               "all_groups_finished_not_mass_failure"
             ],
-            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
+            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. A run finishes when all its shards have, or - once it is overdue by the project's run timeout, counted from its latest shard's start - when every shard that started has completed or timed out; such a run counts like a cancelled one, with the results its shards reported (since 1.0.0-beta.10). Runs still running are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
           },
           "days": {
             "type": "integer",
@@ -5857,7 +5857,7 @@
               "local_groups_finished_not_mass_failure",
               "all_groups_finished_not_mass_failure"
             ],
-            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
+            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. A run finishes when all its shards have, or - once it is overdue by the project's run timeout, counted from its latest shard's start - when every shard that started has completed or timed out; such a run counts like a cancelled one, with the results its shards reported (since 1.0.0-beta.10). Runs still running are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
           },
           "days": {
             "type": "integer",
@@ -6165,7 +6165,7 @@
                 },
                 "counted": {
                   "type": "boolean",
-                  "description": "Whether the run is in the metrics' population (see population on the metrics endpoints): a run of the source parameter's kind - CI by default - whose shards all finished, not a mass failure, and the test not just skipped by a cancellation (since 1.0.0-beta.6; the source since 1.0.0-beta.8)."
+                  "description": "Whether the run is in the metrics' population (see population on the metrics endpoints): a run of the source parameter's kind - CI by default - that finished (all its shards, or overdue with every shard that started completed or timed out - since 1.0.0-beta.10), not a mass failure, and the test not just skipped by a cancellation (since 1.0.0-beta.6; the source since 1.0.0-beta.8)."
                 },
                 "branch": {
                   "anyOf": [
@@ -6285,7 +6285,7 @@
               "local_groups_finished",
               "all_groups_finished"
             ],
-            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
+            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). A run finishes when all its shards have, or - once it is overdue by the project's run timeout, counted from its latest shard's start - when every shard that started has completed or timed out; such a run counts like a cancelled one, with the results its shards reported (since 1.0.0-beta.10). Runs still running are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
           },
           "window": {
             "type": "object",
@@ -6424,7 +6424,7 @@
           },
           "unfinishedRuns": {
             "type": "integer",
-            "description": "Runs of the source in the window that have not finished - a shard still running, timed out or never reported. In no figure (since 1.0.0-beta.9)."
+            "description": "Runs of the source in the window that have not finished - a shard still running, or one timed out or never reported while the run is not yet overdue (an overdue one is finished and counted since 1.0.0-beta.10). In no figure (since 1.0.0-beta.9)."
           }
         },
         "required": [
@@ -6462,7 +6462,7 @@
               "local_groups_finished",
               "all_groups_finished"
             ],
-            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
+            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). A run finishes when all its shards have, or - once it is overdue by the project's run timeout, counted from its latest shard's start - when every shard that started has completed or timed out; such a run counts like a cancelled one, with the results its shards reported (since 1.0.0-beta.10). Runs still running are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
           },
           "window": {
             "type": "object",
@@ -6778,7 +6778,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "The run's status over all its shards: passed or failed."
+                    "description": "The run's status over all its shards: passed or failed, or incomplete for a run finished by the run timeout - a shard timed out or never reported (since 1.0.0-beta.10)."
                   },
                   "startedAt": {
                     "type": "string",
@@ -6843,11 +6843,11 @@
           },
           "runsInWindow": {
             "type": "integer",
-            "description": "Finished runs of the source in the window on branchScope (see the source parameter and testMetrics.population), each counted once however many shards it had, by the start of its first shard; mass-failure and cancelled runs included. The runs windowStability is counted over."
+            "description": "Finished runs of the source in the window on branchScope (see the source parameter and testMetrics.population), each counted once however many shards it had, by the start of its first shard; mass-failure, cancelled and incomplete runs included (incomplete - finished by the run timeout - since 1.0.0-beta.10). The runs windowStability is counted over."
           },
           "unfinishedRuns": {
             "type": "integer",
-            "description": "Runs of the source in the window on branchScope that have not finished - a shard still running, timed out or never reported. In no other figure (since 1.0.0-beta.7; of the source since 1.0.0-beta.8)."
+            "description": "Runs of the source in the window on branchScope that have not finished - a shard still running, or one timed out or never reported while the run is not yet overdue (an overdue one is finished and counted since 1.0.0-beta.10). In no other figure (since 1.0.0-beta.7; of the source since 1.0.0-beta.8)."
           },
           "suiteSize": {
             "type": "integer",
@@ -6921,7 +6921,7 @@
                   "local_groups_finished_not_mass_failure",
                   "all_groups_finished_not_mass_failure"
                 ],
-                "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
+                "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. A run finishes when all its shards have, or - once it is overdue by the project's run timeout, counted from its latest shard's start - when every shard that started has completed or timed out; such a run counts like a cancelled one, with the results its shards reported (since 1.0.0-beta.10). Runs still running are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
               },
               "days": {
                 "type": "integer",
@@ -7045,7 +7045,7 @@
                 "durationMs"
               ]
             },
-            "description": "The last 30 finished runs of the source on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled runs are left out."
+            "description": "The last 30 finished runs of the source on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled and incomplete runs are left out (incomplete since 1.0.0-beta.10)."
           }
         },
         "required": [

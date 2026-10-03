@@ -110,11 +110,12 @@ export const TOOLS: ToolDefinition[] = [
       "/ runs), flakyRate (runs that passed only after a retry / runs), failureRate (failed " +
       "runs / runs), time lost to retries and failures, its last 20 runs (each with the run " +
       "id squally-find-run gives; runs it skipped included, as result \"skipped\" - shown, " +
-      "never counted in runs or any rate) and the branches it ran on. Counts the CI runs of " +
-      "the period whose shards all finished - a sharded run counts once, by its first " +
-      "shard's start - without runs that were a mass failure as a whole; source=local or " +
-      "source=all counts local runs or both instead (population names which), and a run " +
-      "still in progress counts once all its shards have finished. There " +
+      "never counted in runs or any rate) and the branches it ran on. Counts the finished " +
+      "CI runs of the period - a sharded run counts once, by its first shard's start - " +
+      "without runs that were a mass failure as a whole; source=local or source=all counts " +
+      "local runs or both instead (population names which). A run still in progress counts " +
+      "once all its shards have finished, or once the run timeout has passed, with the " +
+      "shards that finished. There " +
       "is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
       "with null rates is a valid answer: no counted CI run of this test in the period. " +
       "Cheap; for one test use this, not squally-list-tests.",

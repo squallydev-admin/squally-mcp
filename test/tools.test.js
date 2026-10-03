@@ -164,7 +164,8 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /failureRate \(failed runs \/ runs\)/);
   // 0.3.0, API 1.0.0-beta.6: one run per CI run, counted once its shards have
   // all finished; a mass failure is judged on the run as a whole.
-  assert.match(metrics, /CI runs of the period whose shards all finished - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole/);
+  // API 1.0.0-beta.10: "finished" includes a run the run timeout ended.
+  assert.match(metrics, /finished CI runs of the period - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole/);
   // 0.4.0, API 1.0.0-beta.8: local runs count when asked for - "local runs
   // never count" was true until then, and an agent reading it would not try.
   assert.match(metrics, /source=local or source=all counts local runs or both instead \(population names which\)/);
@@ -172,8 +173,13 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /each with the run id squally-find-run gives/);
   // 0.4.0, API 1.0.0-beta.7: the newest run is the one an agent asks about,
   // and it is not in the numbers until its last shard has finished.
-  assert.match(metrics, /a run still in progress counts once all its shards have finished/);
-  assert.match(INSTRUCTIONS, /a run still in progress counts once all its shards have finished/);
+  // API 1.0.0-beta.10: ... or once the run timeout has passed.
+  for (const text of [metrics, INSTRUCTIONS]) {
+    assert.match(
+      text,
+      /A run still in progress counts once all its shards have finished, or once the run timeout has passed, with the shards that finished/
+    );
+  }
   assert.match(metrics, /There is no verdict/);
   assert.match(metrics, /runs = 0 with null rates is a valid answer/);
   assert.match(metrics, /\bCheap\b/);
@@ -473,9 +479,18 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // tools and the instructions say local runs count when asked for (they said
   // they never count), squally-list-errors says what it counts. No other tool
   // changed - diffed against the 0.4.0 first half.
+  //
+  // Unreleased: 030a7b353fcde855 -> be7570d83ef0a765. Re-vendored from API
+  // 1.0.0-beta.10 (squally-app, the timeout rule, 03.10.2026; behaviour change
+  // only). No shape changed: the document without descriptions is identical to
+  // beta.9, and every parameter and 200 schema of the seven operations too. The
+  // re-vendor alone moves the digest to 0ec18d6d9d3f7f0c (measured): the
+  // output-schema descriptions of population and unfinishedRuns say a run the
+  // run timeout ended counts. The rest is squally-get-test-metrics'
+  // description, which says the same.
   assert.equal(
     digest(toolList()),
-    "030a7b353fcde855",
+    "be7570d83ef0a765",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -487,10 +502,10 @@ test("the server identifies as squally and carries the instructions", () => {
     INSTRUCTIONS,
     "Start with squally-list-projects; every other tool needs a projectId from it. " +
       "For one test, use squally-get-test-metrics, not squally-list-tests. " +
-      "Test metrics count the CI runs of the period whose shards all finished - a sharded " +
-      "run counts once - without runs that were a mass failure as a whole; pass source=local " +
-      "or source=all to count local runs or both, and a run still in progress counts once " +
-      "all its shards have finished. " +
+      "Test metrics count the finished CI runs of the period - a sharded run counts once - " +
+      "without runs that were a mass failure as a whole; pass source=local or source=all " +
+      "to count local runs or both. A run still in progress counts once all its shards have " +
+      "finished, or once the run timeout has passed, with the shards that finished. " +
       "stability = runs that passed on the " +
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +
