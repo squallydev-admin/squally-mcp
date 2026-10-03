@@ -115,7 +115,8 @@ export const TOOLS: ToolDefinition[] = [
       "without runs that were a mass failure as a whole; source=local or source=all counts " +
       "local runs or both instead (population names which). A run still in progress counts " +
       "once all its shards have finished, or once the run timeout has passed, with the " +
-      "shards that finished. There " +
+      "results its shards reported - also when a shard was stopped by the monthly result " +
+      "limit. There " +
       "is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
       "with null rates is a valid answer: no counted CI run of this test in the period. " +
       "Cheap; for one test use this, not squally-list-tests.",

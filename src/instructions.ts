@@ -28,6 +28,10 @@
 // never started counts once the run timeout has passed, with the shards that
 // finished - "whose shards all finished" stopped being the whole rule.
 //
+// THE MONTHLY RESULT LIMIT (API 1.0.0-beta.11, unreleased): a shard the limit
+// stopped is treated like a timed-out one, so the sentence names it - and says
+// "the results its shards reported", since such a shard did not finish.
+//
 // Exported as `squally-mcp/instructions` (package.json), so it stays a plain
 // constant - test/exports.test.js imports it through the package name.
 export const INSTRUCTIONS = [
@@ -36,7 +40,8 @@ export const INSTRUCTIONS = [
   "Test metrics count the finished CI runs of the period - a sharded run counts once -",
   "without runs that were a mass failure as a whole; pass source=local or source=all",
   "to count local runs or both. A run still in progress counts once all its shards have",
-  "finished, or once the run timeout has passed, with the shards that finished.",
+  "finished, or once the run timeout has passed, with the results its shards reported -",
+  "also when a shard was stopped by the monthly result limit.",
   "stability = runs that passed on the",
   "first try / runs; flakyRate = runs that passed only after a retry / runs;",
   "failureRate = failed runs / runs. There is no verdict: the tools return numbers,",

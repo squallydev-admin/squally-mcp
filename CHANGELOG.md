@@ -3,8 +3,9 @@
 ## Unreleased
 
 **No new minimum API version.** 0.4.0 and this work against the read API
-1.0.0-beta.9 and beta.10 alike: beta.10 changed what the numbers count, not a
-field or a value, so no output schema rejects either.
+1.0.0-beta.9, beta.10 and beta.11 alike: beta.10 and beta.11 changed what the
+numbers count, not a field or a value, so no output schema rejects any of
+them.
 
 ### Changed
 
@@ -16,6 +17,13 @@ field or a value, so no output schema rejects either.
 - `squally-get-test-metrics`' description and the server instructions say the
   same: a run still in progress counts once all its shards have finished, or
   once the run timeout has passed. They said only the first.
+- The vendored OpenAPI document is 1.0.0-beta.11. A shard stopped by the
+  monthly result limit is treated like one that timed out: once the run
+  timeout has passed, its run counts with the results its shards reported.
+  The same output-schema descriptions say so, and so do
+  `squally-get-test-metrics`' description and the server instructions, which
+  now say "with the results its shards reported" where they said "with the
+  shards that finished".
 
 No tool was added or removed, and no input or output schema changed shape.
 

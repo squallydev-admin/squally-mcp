@@ -152,8 +152,9 @@ the tool descriptions say so, and the server repeats it in its instructions.
 
 The two test tools count **finished CI runs** in the period (7, 14, 30 or 90
 days; 30 by default), on every branch unless you name one. A run finishes when
-all its shards have - or, once the run timeout has passed, with the shards that
-finished, like a cancelled run. A sharded run counts once, placed in the period
+all its shards have - or, once the run timeout has passed, with the results its
+shards reported, like a cancelled run; a shard stopped by the monthly result
+limit counts like one that timed out. A sharded run counts once, placed in the period
 by its first shard's start; a run that was a mass failure as a whole is left
 out. Local runs count only
 when you ask for them: `source` is `ci` (the default), `local` or `all`, and

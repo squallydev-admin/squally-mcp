@@ -173,11 +173,12 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /each with the run id squally-find-run gives/);
   // 0.4.0, API 1.0.0-beta.7: the newest run is the one an agent asks about,
   // and it is not in the numbers until its last shard has finished.
-  // API 1.0.0-beta.10: ... or once the run timeout has passed.
+  // API 1.0.0-beta.10: ... or once the run timeout has passed; beta.11: a shard
+  // the monthly result limit stopped is treated like a timed-out one.
   for (const text of [metrics, INSTRUCTIONS]) {
     assert.match(
       text,
-      /A run still in progress counts once all its shards have finished, or once the run timeout has passed, with the shards that finished/
+      /A run still in progress counts once all its shards have finished, or once the run timeout has passed, with the results its shards reported - also when a shard was stopped by the monthly result limit/
     );
   }
   assert.match(metrics, /There is no verdict/);
@@ -488,9 +489,18 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // output-schema descriptions of population and unfinishedRuns say a run the
   // run timeout ended counts. The rest is squally-get-test-metrics'
   // description, which says the same.
+  //
+  // Unreleased: be7570d83ef0a765 -> b5f33880241a0860. Re-vendored from API
+  // 1.0.0-beta.11 (squally-app, the monthly result limit treated like a
+  // timeout, 03.10.2026; descriptions only). No shape changed: the document
+  // without descriptions and info is identical to beta.10. The re-vendor alone
+  // gives 6b3f7d137c804423 (measured) - the same output-schema descriptions
+  // name the limit. The rest is squally-get-test-metrics' description: "with
+  // the results its shards reported - also when a shard was stopped by the
+  // monthly result limit", where it said "with the shards that finished".
   assert.equal(
     digest(toolList()),
-    "be7570d83ef0a765",
+    "b5f33880241a0860",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -505,7 +515,8 @@ test("the server identifies as squally and carries the instructions", () => {
       "Test metrics count the finished CI runs of the period - a sharded run counts once - " +
       "without runs that were a mass failure as a whole; pass source=local or source=all " +
       "to count local runs or both. A run still in progress counts once all its shards have " +
-      "finished, or once the run timeout has passed, with the shards that finished. " +
+      "finished, or once the run timeout has passed, with the results its shards reported - " +
+      "also when a shard was stopped by the monthly result limit. " +
       "stability = runs that passed on the " +
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +
