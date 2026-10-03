@@ -112,8 +112,9 @@ export const TOOLS: ToolDefinition[] = [
       "id squally-find-run gives; runs it skipped included, as result \"skipped\" - shown, " +
       "never counted in runs or any rate) and the branches it ran on. Counts the CI runs of " +
       "the period whose shards all finished - a sharded run counts once, by its first " +
-      "shard's start - without runs that were a mass failure as a whole; local runs never " +
-      "count, and a run still in progress counts once all its shards have finished. There " +
+      "shard's start - without runs that were a mass failure as a whole; source=local or " +
+      "source=all counts local runs or both instead (population names which), and a run " +
+      "still in progress counts once all its shards have finished. There " +
       "is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
       "with null rates is a valid answer: no counted CI run of this test in the period. " +
       "Cheap; for one test use this, not squally-list-tests.",
@@ -125,7 +126,7 @@ export const TOOLS: ToolDefinition[] = [
     title: "List tests",
     operationId: "listTests",
     description:
-      "Every test with a counted CI run in the period, with the same numbers per test as " +
+      "Every test with a counted CI run in the period (or local run, with source), with the same numbers per test as " +
       "squally-get-test-metrics - runs, stability, flakyRate, failureRate, time lost - ranked " +
       "worst first by the chosen sort (default: lowest stability). There is no verdict and no " +
       "status - the tool labels no test; you judge the numbers. Moderate - two queries over " +
@@ -140,8 +141,11 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "The project's error signatures in a period: failures grouped by fingerprint, with how " +
       "often and how recently each occurred. Answers 'is this failure one instance of something " +
-      "that keeps happening' - a grouping no agent can compute from the repository alone.",
-    answers: "Error signatures in a period: what keeps failing, grouped.",
+      "that keeps happening' - a grouping no agent can compute from the repository alone. " +
+      "Counts finished CI runs by default (source=local or all for the others), a sharded run " +
+      "once, mass-failure runs included; failedCount and flakyCount say how the runs ended " +
+      "for the tests the error hit.",
+    answers: "Error signatures in a period: what keeps failing, grouped, and how its runs ended.",
     cost: "cheap",
   },
 ];

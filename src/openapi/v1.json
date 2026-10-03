@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.7",
+    "version": "1.0.0-beta.9",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -1675,7 +1675,7 @@
       "get": {
         "operationId": "listTests",
         "summary": "List tests",
-        "description": "Every test with a CI run in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts completed CI runs only, without mass-failure runs, on every branch unless branch names one (see population). Moderate: two queries over the period's CI results, paged in the database; use the metrics route for one test.",
+        "description": "Every test with a run of the source (CI by default) in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts completed runs of the source - CI by default - without mass-failure runs, on every branch unless branch names one (see population). Moderate: two queries over the period's CI results, paged in the database; use the metrics route for one test.",
         "tags": [
           "Tests"
         ],
@@ -1725,6 +1725,21 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
             }
           },
           {
@@ -2284,7 +2299,7 @@
       "get": {
         "operationId": "getTestMetrics",
         "summary": "Get test metrics",
-        "description": "One test's metrics over the period: the fields of its /tests row, flat, beside the same period. A test with results but no CI run in the period answers zeros and null rates rather than 404. Cheap: the list's queries, narrowed to one test; prefer it to /tests when the question is about one test.",
+        "description": "One test's metrics over the period: the fields of its /tests row, flat, beside the same period. A test with results but no run of the source in the period answers zeros and null rates rather than 404. Cheap: the list's queries, narrowed to one test; prefer it to /tests when the question is about one test.",
         "tags": [
           "Tests"
         ],
@@ -2341,6 +2356,21 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
             }
           }
         ],
@@ -2695,7 +2725,7 @@
       "get": {
         "operationId": "getTestHistory",
         "summary": "Get test history",
-        "description": "Get a test's history across runs. One test in every run of a period, newest first: final status, duration, attempts and time spent on retries. Moderate.",
+        "description": "Get a test's history across runs. One test in every run of a period, newest first: final status, duration, attempts and time spent on retries. Every run is listed; source decides which are counted. Moderate.",
         "tags": [
           "Tests"
         ],
@@ -2741,6 +2771,21 @@
                 90
               ],
               "default": 30
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
             }
           }
         ],
@@ -2808,7 +2853,7 @@
             }
           },
           "400": {
-            "description": "Error: ambiguous_test, invalid_period",
+            "description": "Error: ambiguous_test, invalid_parameter, invalid_period",
             "content": {
               "application/json": {
                 "schema": {
@@ -2822,6 +2867,7 @@
                       "type": "string",
                       "enum": [
                         "ambiguous_test",
+                        "invalid_parameter",
                         "invalid_period"
                       ],
                       "description": "Stable slug - match on this, not on the sentence."
@@ -2838,6 +2884,13 @@
                     "value": {
                       "error": "Several tests have this name. Pass ?filePath= with one of: tests/a.spec.ts, tests/b.spec.ts.",
                       "code": "ambiguous_test"
+                    }
+                  },
+                  "invalid_parameter": {
+                    "summary": "invalid_parameter",
+                    "value": {
+                      "error": "sha must be 4 to 40 hexadecimal characters (a commit SHA or a prefix of one).",
+                      "code": "invalid_parameter"
                     }
                   },
                   "invalid_period": {
@@ -3045,7 +3098,7 @@
       "get": {
         "operationId": "listErrors",
         "summary": "List errors",
-        "description": "List errors. The project's errors in a period - failures grouped by fingerprint - most frequent first. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query.",
+        "description": "List errors. The project's errors in a period - failures grouped by fingerprint - most frequent first, over the finished runs of the source (see population), all shards of a run one run. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query.",
         "tags": [
           "Errors"
         ],
@@ -3073,6 +3126,21 @@
                 90
               ],
               "default": 30
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
             }
           },
           {
@@ -3120,6 +3188,7 @@
                     "id": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
                     "name": "storefront-web"
                   },
+                  "population": "ci_groups_finished",
                   "window": {
                     "days": 30,
                     "from": "2026-08-25T08:00:00.000Z",
@@ -3145,12 +3214,15 @@
                       ],
                       "occurrenceCount": 9,
                       "runCount": 7,
+                      "failedCount": 5,
+                      "flakyCount": 2,
+                      "massFailureRunCount": 0,
                       "firstSeen": "2026-09-02T11:20:44.000Z",
-                      "lastSeen": "2026-09-24T07:34:05.000Z",
-                      "isNew": true
+                      "lastSeen": "2026-09-24T07:34:05.000Z"
                     }
                   ],
-                  "unfingerprintedCount": 0
+                  "unfingerprintedCount": 0,
+                  "unfinishedRuns": 0
                 }
               }
             }
@@ -3385,7 +3457,7 @@
       "get": {
         "operationId": "getError",
         "summary": "Get an error",
-        "description": "Get an error. One error: its counts, the tests it hits and the runs it occurred in. An error quiet in the period is answered over everything still stored (windowEmpty: true). Moderate.",
+        "description": "Get an error. One error: its counts, the tests it hits and the runs it occurred in - one row per run and test, by the run's id as /runs gives it. An error quiet in the period is answered over everything still stored (windowEmpty: true). Moderate.",
         "tags": [
           "Errors"
         ],
@@ -3424,6 +3496,21 @@
               ],
               "default": 30
             }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
+            }
           }
         ],
         "responses": {
@@ -3444,6 +3531,7 @@
                     "id": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
                     "name": "storefront-web"
                   },
+                  "population": "ci_groups_finished",
                   "window": {
                     "days": 30,
                     "from": "2026-08-25T08:00:00.000Z",
@@ -3462,16 +3550,21 @@
                     ],
                     "occurrenceCount": 9,
                     "runCount": 7,
+                    "failedCount": 5,
+                    "flakyCount": 2,
+                    "massFailureRunCount": 0,
                     "firstSeen": "2026-09-02T11:20:44.000Z",
-                    "lastSeen": "2026-09-24T07:34:05.000Z",
-                    "isNew": true
+                    "lastSeen": "2026-09-24T07:34:05.000Z"
                   },
                   "windowEmpty": false,
                   "tests": [
                     {
                       "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
                       "filePath": "tests/checkout.spec.ts",
-                      "occurrenceCount": 9
+                      "occurrenceCount": 9,
+                      "runCount": 7,
+                      "failedCount": 5,
+                      "flakyCount": 2
                     }
                   ],
                   "runs": [
@@ -3484,7 +3577,8 @@
                       "filePath": "tests/checkout.spec.ts",
                       "attempts": 2,
                       "occurrences": 1,
-                      "finalStatus": "passed"
+                      "finalStatus": "passed",
+                      "massFailure": false
                     }
                   ]
                 }
@@ -3492,7 +3586,7 @@
             }
           },
           "400": {
-            "description": "Error: invalid_period",
+            "description": "Error: invalid_parameter, invalid_period",
             "content": {
               "application/json": {
                 "schema": {
@@ -3505,6 +3599,7 @@
                     "code": {
                       "type": "string",
                       "enum": [
+                        "invalid_parameter",
                         "invalid_period"
                       ],
                       "description": "Stable slug - match on this, not on the sentence."
@@ -3516,6 +3611,13 @@
                   ]
                 },
                 "examples": {
+                  "invalid_parameter": {
+                    "summary": "invalid_parameter",
+                    "value": {
+                      "error": "sha must be 4 to 40 hexadecimal characters (a commit SHA or a prefix of one).",
+                      "code": "invalid_parameter"
+                    }
+                  },
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
@@ -3721,7 +3823,7 @@
       "get": {
         "operationId": "getOverview",
         "summary": "Get dashboard figures",
-        "description": "The dashboard for a period: last run, suite stability, time lost, the two test-metric tiles (testMetrics), slowest tests, time sinks, recent runs. Suite stability and testMetrics count completed CI runs only. Moderate: one pass over the period's runs and one count over its CI results.",
+        "description": "The dashboard for a period: last run, suite stability, time lost, the two test-metric tiles (testMetrics), slowest tests, time sinks, recent runs. Every figure counts finished runs of the source - CI by default - and testMetrics.population names it. Moderate: one pass over the period's runs and one count over its results.",
         "tags": [
           "Project"
         ],
@@ -3763,6 +3865,21 @@
                 "all"
               ],
               "default": "stable"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs count, by where they ran: ci - runs a shard reported a CI provider for (the default); local - runs no shard did; all - both. The response's population names the one counted.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "ci"
             }
           }
         ],
@@ -5430,8 +5547,12 @@
           },
           "population": {
             "type": "string",
-            "const": "ci_groups_finished_not_mass_failure",
-            "description": "Which runs every number counts: CI runs (reported with a CI provider) whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count; runs that have not finished are not counted. Since 1.0.0-beta.6; it was ci_completed_not_excluded, which counted every completed shard on its own."
+            "enum": [
+              "ci_groups_finished_not_mass_failure",
+              "local_groups_finished_not_mass_failure",
+              "all_groups_finished_not_mass_failure"
+            ],
+            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
           },
           "days": {
             "type": "integer",
@@ -5731,8 +5852,12 @@
           },
           "population": {
             "type": "string",
-            "const": "ci_groups_finished_not_mass_failure",
-            "description": "Which runs every number counts: CI runs (reported with a CI provider) whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count; runs that have not finished are not counted. Since 1.0.0-beta.6; it was ci_completed_not_excluded, which counted every completed shard on its own."
+            "enum": [
+              "ci_groups_finished_not_mass_failure",
+              "local_groups_finished_not_mass_failure",
+              "all_groups_finished_not_mass_failure"
+            ],
+            "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
           },
           "days": {
             "type": "integer",
@@ -6036,11 +6161,11 @@
                 },
                 "local": {
                   "type": "boolean",
-                  "description": "No shard of the run reported a CI provider: a local run. Listed, never counted in a metric (since 1.0.0-beta.6)."
+                  "description": "No shard of the run reported a CI provider: a local run. Listed always; counted only under source=local or source=all (since 1.0.0-beta.8; never counted from 1.0.0-beta.6)."
                 },
                 "counted": {
                   "type": "boolean",
-                  "description": "Whether the run is in the metrics' population (see population on the metrics endpoints): a CI run whose shards all finished, not a mass failure, and the test not just skipped by a cancellation (since 1.0.0-beta.6)."
+                  "description": "Whether the run is in the metrics' population (see population on the metrics endpoints): a run of the source parameter's kind - CI by default - whose shards all finished, not a mass failure, and the test not just skipped by a cancellation (since 1.0.0-beta.6; the source since 1.0.0-beta.8)."
                 },
                 "branch": {
                   "anyOf": [
@@ -6153,6 +6278,15 @@
               "name"
             ]
           },
+          "population": {
+            "type": "string",
+            "enum": [
+              "ci_groups_finished",
+              "local_groups_finished",
+              "all_groups_finished"
+            ],
+            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
+          },
           "window": {
             "type": "object",
             "properties": {
@@ -6240,19 +6374,29 @@
                   "type": "integer"
                 },
                 "runCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Runs of the population with at least one such attempt in the window - all shards of a run one run (since 1.0.0-beta.9; it counted every shard row)."
+                },
+                "failedCount": {
+                  "type": "integer",
+                  "description": "Of the (run, test) pairs the error hit, how many ended failed: the test's final attempt across all the run's shards failed (since 1.0.0-beta.9)."
+                },
+                "flakyCount": {
+                  "type": "integer",
+                  "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
+                },
+                "massFailureRunCount": {
+                  "type": "integer",
+                  "description": "Of runCount, the runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed) - counted, and named here (since 1.0.0-beta.9)."
                 },
                 "firstSeen": {
                   "type": "string",
                   "format": "date-time",
-                  "description": "First seen in what is still stored: the earliest occurrence the plan's retention has kept, NOT bounded by the requested period. ISO-8601."
+                  "description": "First seen in what is still stored: the start of the earliest run of the population, as far back as the plan's retention keeps them, NOT bounded by the requested period. ISO-8601. (isNew, \"absent in the period before\", was removed in 1.0.0-beta.9: compare firstSeen with window.from.)"
                 },
                 "lastSeen": {
                   "type": "string",
                   "format": "date-time"
-                },
-                "isNew": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -6266,22 +6410,31 @@
                 "testNames",
                 "occurrenceCount",
                 "runCount",
+                "failedCount",
+                "flakyCount",
+                "massFailureRunCount",
                 "firstSeen",
-                "lastSeen",
-                "isNew"
+                "lastSeen"
               ]
             }
           },
           "unfingerprintedCount": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Failed attempts in the window's runs of the population that carry no signature and are not grouped (the window only since 1.0.0-beta.9; it read the period before too). Expected 0."
+          },
+          "unfinishedRuns": {
+            "type": "integer",
+            "description": "Runs of the source in the window that have not finished - a shard still running, timed out or never reported. In no figure (since 1.0.0-beta.9)."
           }
         },
         "required": [
           "project",
+          "population",
           "window",
           "page",
           "errors",
-          "unfingerprintedCount"
+          "unfingerprintedCount",
+          "unfinishedRuns"
         ]
       },
       "ErrorDetailResponse": {
@@ -6301,6 +6454,15 @@
               "id",
               "name"
             ]
+          },
+          "population": {
+            "type": "string",
+            "enum": [
+              "ci_groups_finished",
+              "local_groups_finished",
+              "all_groups_finished"
+            ],
+            "description": "Which runs every error figure counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - runs that were a mass failure as a whole included (see massFailureRunCount). Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.9)."
           },
           "window": {
             "type": "object",
@@ -6364,19 +6526,29 @@
                 "type": "integer"
               },
               "runCount": {
-                "type": "integer"
+                "type": "integer",
+                "description": "Runs of the population with at least one such attempt in the window - all shards of a run one run (since 1.0.0-beta.9; it counted every shard row)."
+              },
+              "failedCount": {
+                "type": "integer",
+                "description": "Of the (run, test) pairs the error hit, how many ended failed: the test's final attempt across all the run's shards failed (since 1.0.0-beta.9)."
+              },
+              "flakyCount": {
+                "type": "integer",
+                "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
+              },
+              "massFailureRunCount": {
+                "type": "integer",
+                "description": "Of runCount, the runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed) - counted, and named here (since 1.0.0-beta.9)."
               },
               "firstSeen": {
                 "type": "string",
                 "format": "date-time",
-                "description": "First seen in what is still stored: the earliest occurrence the plan's retention has kept, NOT bounded by the requested period. ISO-8601."
+                "description": "First seen in what is still stored: the start of the earliest run of the population, as far back as the plan's retention keeps them, NOT bounded by the requested period. ISO-8601. (isNew, \"absent in the period before\", was removed in 1.0.0-beta.9: compare firstSeen with window.from.)"
               },
               "lastSeen": {
                 "type": "string",
                 "format": "date-time"
-              },
-              "isNew": {
-                "type": "boolean"
               }
             },
             "required": [
@@ -6390,9 +6562,11 @@
               "testNames",
               "occurrenceCount",
               "runCount",
+              "failedCount",
+              "flakyCount",
+              "massFailureRunCount",
               "firstSeen",
-              "lastSeen",
-              "isNew"
+              "lastSeen"
             ]
           },
           "windowEmpty": {
@@ -6419,12 +6593,27 @@
                 },
                 "occurrenceCount": {
                   "type": "integer"
+                },
+                "runCount": {
+                  "type": "integer",
+                  "description": "Runs in which this test hit the error (since 1.0.0-beta.9)."
+                },
+                "failedCount": {
+                  "type": "integer",
+                  "description": "Of those runs, the ones the test ended failed (since 1.0.0-beta.9)."
+                },
+                "flakyCount": {
+                  "type": "integer",
+                  "description": "Of those runs, the ones the test ended flaky - passed after a retry (since 1.0.0-beta.9)."
                 }
               },
               "required": [
                 "testName",
                 "filePath",
-                "occurrenceCount"
+                "occurrenceCount",
+                "runCount",
+                "failedCount",
+                "flakyCount"
               ]
             }
           },
@@ -6434,7 +6623,8 @@
               "type": "object",
               "properties": {
                 "runId": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The run, by the id GET /projects/{projectId}/runs gives it - one row per run and test, however many shards the run had (since 1.0.0-beta.9; it was one row per shard, with the shard's id)."
                 },
                 "runNumber": {
                   "type": "integer"
@@ -6467,13 +6657,20 @@
                   ]
                 },
                 "attempts": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Every attempt of the test in the run, retries and every shard included."
                 },
                 "occurrences": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "How many of those carry this error."
                 },
                 "finalStatus": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The test's final attempt across all the run's shards, through test.fail(): passed, failed or skipped."
+                },
+                "massFailure": {
+                  "type": "boolean",
+                  "description": "The run was a mass failure as a whole (since 1.0.0-beta.9)."
                 }
               },
               "required": [
@@ -6485,13 +6682,15 @@
                 "filePath",
                 "attempts",
                 "occurrences",
-                "finalStatus"
+                "finalStatus",
+                "massFailure"
               ]
             }
           }
         },
         "required": [
           "project",
+          "population",
           "window",
           "signature",
           "windowEmpty",
@@ -6640,15 +6839,15 @@
                 "type": "null"
               }
             ],
-            "description": "The newest finished CI run on branchScope, whatever the window - falling back to any branch when the stable branch has none."
+            "description": "The newest finished run of the source on branchScope, whatever the window - falling back to any branch when the stable branch has none (see the source parameter and testMetrics.population)."
           },
           "runsInWindow": {
             "type": "integer",
-            "description": "Finished CI runs in the window on branchScope, each counted once however many shards it had, by the start of its first shard; mass-failure and cancelled runs included. The runs windowStability is counted over."
+            "description": "Finished runs of the source in the window on branchScope (see the source parameter and testMetrics.population), each counted once however many shards it had, by the start of its first shard; mass-failure and cancelled runs included. The runs windowStability is counted over."
           },
           "unfinishedRuns": {
             "type": "integer",
-            "description": "CI runs of the window on branchScope that have not finished - a shard still running, timed out or never reported. In no other figure (since 1.0.0-beta.7)."
+            "description": "Runs of the source in the window on branchScope that have not finished - a shard still running, timed out or never reported. In no other figure (since 1.0.0-beta.7; of the source since 1.0.0-beta.8)."
           },
           "suiteSize": {
             "type": "integer",
@@ -6663,7 +6862,7 @@
                 "type": "null"
               }
             ],
-            "description": "Suite stability, 0-100: of the final test results in the window's finished CI runs on branchScope (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists."
+            "description": "Suite stability, 0-100: of the final test results in the window's finished runs of the source on branchScope (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists."
           },
           "timeLost": {
             "type": "object",
@@ -6694,7 +6893,7 @@
               "wastedAttempts",
               "wallClockMs"
             ],
-            "description": "Time spent on attempts a later retry superseded, in the window's finished CI runs on branchScope; wallClockMs is the CI time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
+            "description": "Time spent on attempts a later retry superseded, in the window's finished runs of the source on branchScope; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
           },
           "failingTests": {
             "type": "object",
@@ -6710,15 +6909,19 @@
               "failing",
               "testsRun"
             ],
-            "description": "Tests whose final attempt failed in at least one of the window's finished CI runs on branchScope, out of the tests those runs reported (a skipped test counts as reported). Local runs no longer count (since 1.0.0-beta.7)."
+            "description": "Tests whose final attempt failed in at least one of the window's finished runs of the source on branchScope, out of the tests those runs reported (a skipped test counts as reported)."
           },
           "testMetrics": {
             "type": "object",
             "properties": {
               "population": {
                 "type": "string",
-                "const": "ci_groups_finished_not_mass_failure",
-                "description": "Which runs every number counts: CI runs (reported with a CI provider) whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Local runs never count; runs that have not finished are not counted. Since 1.0.0-beta.6; it was ci_completed_not_excluded, which counted every completed shard on its own."
+                "enum": [
+                  "ci_groups_finished_not_mass_failure",
+                  "local_groups_finished_not_mass_failure",
+                  "all_groups_finished_not_mass_failure"
+                ],
+                "description": "Which runs every number counts: runs whose shards all finished, each counted once however many shards it ran in, placed in the period by the start of their first shard - without runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed). Every branch unless the branch parameter names one. Runs that have not finished are not counted. The prefix names the source parameter: ci_ - CI runs (a shard reported a CI provider), the default; local_ - runs no shard reported a CI provider for; all_ - both (since 1.0.0-beta.8; before it, ci_groups_finished_not_mass_failure was the only value, and since 1.0.0-beta.6 - it was ci_completed_not_excluded, which counted every completed shard on its own)."
               },
               "days": {
                 "type": "integer",
@@ -6734,7 +6937,7 @@
               },
               "ciTests": {
                 "type": "integer",
-                "description": "Tests with at least one CI run in the period."
+                "description": "Tests with at least one run of the population in the period - CI runs by default; the name is from when only CI runs counted."
               }
             },
             "required": [
@@ -6842,7 +7045,7 @@
                 "durationMs"
               ]
             },
-            "description": "The last 30 finished CI runs on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled runs are left out."
+            "description": "The last 30 finished runs of the source on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled runs are left out."
           }
         },
         "required": [

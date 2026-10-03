@@ -143,7 +143,7 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | `squally-debug-failure` | Every attempt of one test in one run: error, stack, Copy-for-AI prompt. | cheap |
 | `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
 | `squally-list-tests` | Every test with a CI run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
-| `squally-list-errors` | Error signatures in a period: what keeps failing, grouped. | cheap |
+| `squally-list-errors` | Error signatures in a period: what keeps failing, grouped, and how its runs ended. | cheap |
 
 For a single test use `squally-get-test-metrics`, not `squally-list-tests` —
 the tool descriptions say so, and the server repeats it in its instructions.
@@ -153,8 +153,9 @@ the tool descriptions say so, and the server repeats it in its instructions.
 The two test tools count **CI runs whose shards all finished** in the period
 (7, 14, 30 or 90 days; 30 by default), on every branch unless you name one. A
 sharded run counts once, placed in the period by its first shard's start; a
-run that was a mass failure as a whole is left out. Local runs never count.
-Per test:
+run that was a mass failure as a whole is left out. Local runs count only
+when you ask for them: `source` is `ci` (the default), `local` or `all`, and
+the response's `population` names which runs it counted. Per test:
 
 - **stability** — runs that passed on the first try ÷ runs;
 - **flakyRate** — runs that passed only after a retry ÷ runs;

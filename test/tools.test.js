@@ -56,14 +56,14 @@ const EXPECTED_PARAMS = {
   "squally-get-test-metrics": [
     "getTestMetrics",
     ["projectId", "testName"],
-    ["filePath", "days", "branch"],
+    ["filePath", "days", "branch", "source"],
   ],
   "squally-list-tests": [
     "listTests",
     ["projectId"],
-    ["days", "search", "branch", "browser", "sort", "page", "perPage"],
+    ["days", "search", "branch", "source", "browser", "sort", "page", "perPage"],
   ],
-  "squally-list-errors": ["listErrors", ["projectId"], ["days", "page"]],
+  "squally-list-errors": ["listErrors", ["projectId"], ["days", "source", "page"]],
 };
 
 /** The top-level properties of each operation's 200 response schema. */
@@ -117,7 +117,7 @@ const EXPECTED_OUTPUT_KEYS = {
     "pageCount",
     "items",
   ],
-  "squally-list-errors": ["project", "window", "page", "errors", "unfingerprintedCount"],
+  "squally-list-errors": ["project", "population", "window", "page", "errors", "unfingerprintedCount", "unfinishedRuns"],
 };
 
 test("exactly the seven tools of the spec, in order", () => {
@@ -164,11 +164,14 @@ test("the metric tools define their numbers in plain words and state there is no
   assert.match(metrics, /failureRate \(failed runs \/ runs\)/);
   // 0.3.0, API 1.0.0-beta.6: one run per CI run, counted once its shards have
   // all finished; a mass failure is judged on the run as a whole.
-  assert.match(metrics, /CI runs of the period whose shards all finished - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole; local runs never count/);
+  assert.match(metrics, /CI runs of the period whose shards all finished - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole/);
+  // 0.4.0, API 1.0.0-beta.8: local runs count when asked for - "local runs
+  // never count" was true until then, and an agent reading it would not try.
+  assert.match(metrics, /source=local or source=all counts local runs or both instead \(population names which\)/);
+  assert.match(INSTRUCTIONS, /pass source=local or source=all to count local runs or both/);
   assert.match(metrics, /each with the run id squally-find-run gives/);
-  // Unreleased after 0.3.0, API 1.0.0-beta.7: the newest run is the one an
-  // agent asks about, and it is not in the numbers until its last shard has
-  // finished.
+  // 0.4.0, API 1.0.0-beta.7: the newest run is the one an agent asks about,
+  // and it is not in the numbers until its last shard has finished.
   assert.match(metrics, /a run still in progress counts once all its shards have finished/);
   assert.match(INSTRUCTIONS, /a run still in progress counts once all its shards have finished/);
   assert.match(metrics, /There is no verdict/);
@@ -451,16 +454,28 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // carry the run id squally-find-run gives. No input schema and no other tool
   // changed - diffed against 0.2.3.
   //
-  // Unreleased after 0.3.0: f2370af299aacdde -> a795c8c20452b574. Re-vendored from API
+  // 0.4.0 (first half): f2370af299aacdde -> a795c8c20452b574. Re-vendored from API
   // 1.0.0-beta.7 (squally-app S2 of block 1, 02.10.2026), which changes only
   // /overview - no tool calls it - and info.version: the seven operations'
   // parameters and 200 schemas are identical, and the list re-vendored with
   // the 0.3.0 texts still digests to f2370af299aacdde (measured). The new
   // digest is one clause in squally-get-test-metrics' description: a run still
   // in progress counts once all its shards have finished.
+  //
+  // 0.4.0 (second half): a795c8c20452b574 -> 030a7b353fcde855. Re-vendored from
+  // API 1.0.0-beta.9 (squally-app S3, 03.10.2026; beta.8 the source filter).
+  // Input schemas: squally-get-test-metrics, squally-list-tests and
+  // squally-list-errors take `source` (ci default, local, all). Output schemas:
+  // `population` an enum on the two metric tools (local_ and all_ values
+  // beside the ci one); squally-list-errors gains population, unfinishedRuns
+  // and per error failedCount, flakyCount and massFailureRunCount, loses
+  // isNew, and its runCount counts runs, not shards. Descriptions: the metric
+  // tools and the instructions say local runs count when asked for (they said
+  // they never count), squally-list-errors says what it counts. No other tool
+  // changed - diffed against the 0.4.0 first half.
   assert.equal(
     digest(toolList()),
-    "a795c8c20452b574",
+    "030a7b353fcde855",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -473,8 +488,9 @@ test("the server identifies as squally and carries the instructions", () => {
     "Start with squally-list-projects; every other tool needs a projectId from it. " +
       "For one test, use squally-get-test-metrics, not squally-list-tests. " +
       "Test metrics count the CI runs of the period whose shards all finished - a sharded " +
-      "run counts once - without runs that were a mass failure as a whole; local runs never " +
-      "count, and a run still in progress counts once all its shards have finished. " +
+      "run counts once - without runs that were a mass failure as a whole; pass source=local " +
+      "or source=all to count local runs or both, and a run still in progress counts once " +
+      "all its shards have finished. " +
       "stability = runs that passed on the " +
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +

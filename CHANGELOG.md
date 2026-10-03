@@ -1,24 +1,54 @@
 # Changelog
 
-## Unreleased — vendored API 1.0.0-beta.7; the metric texts say runs in progress are not counted
+## 0.4.0 — breaking: requires API 1.0.0-beta.9; local runs on request, errors counted per run
 
-**No new minimum API version.** This works against the read API
-1.0.0-beta.6 and beta.7 alike: beta.7 leaves every operation a tool calls
-unchanged - same parameters, same output schemas, same `population`
-(`"ci_groups_finished_not_mass_failure"`). app.squally.dev serves beta.7.
+**This version requires the read API 1.0.0-beta.9.** The output schema of
+`squally-list-errors` requires `population`, `failedCount`, `flakyCount`,
+`massFailureRunCount` and `unfinishedRuns` and no longer has `isNew`, so
+against an older API a client that validates structured output (the MCP
+SDK's does) rejects its responses; 0.3.0 against beta.9 fails the same way,
+the other way round. app.squally.dev serves beta.9.
+
+### Added
+
+- `source` on `squally-get-test-metrics`, `squally-list-tests` and
+  `squally-list-errors`: `ci` (the default - what they counted before),
+  `local` or `all`. A local run is one no shard reported a CI provider for;
+  until now local runs counted nowhere.
+- `squally-list-errors`: `population` (`ci_groups_finished`,
+  `local_groups_finished` or `all_groups_finished` - mass-failure runs count
+  here, unlike in the test metrics), `unfinishedRuns`, and per error
+  `failedCount` and `flakyCount` - of the runs and tests the error hit, how
+  many ended failed and how many passed after a retry, by the test's final
+  attempt across the run's shards - and `massFailureRunCount`.
 
 ### Changed
 
-- `squally-get-test-metrics` and the server instructions say that a run still
-  in progress counts once all its shards have finished - the newest run is
-  missing from the numbers until then. Nothing about what is counted changed.
-- The vendored OpenAPI document is 1.0.0-beta.7. Its changes are all in
-  `GET /projects/{projectId}/overview`, which no tool calls: the new
-  `unfinishedRuns`, `lastRun.flaky` and `lastRun.skipped`, `testMetrics`
-  following `branchScope`, and `runsInWindow` / `windowStability` counting a
-  sharded run once, mass failures included.
+- `population` on `squally-get-test-metrics` and `squally-list-tests` is one
+  of `ci_groups_finished_not_mass_failure` (the default, unchanged),
+  `local_groups_finished_not_mass_failure` and
+  `all_groups_finished_not_mass_failure`. It was the first value alone.
+- `squally-list-errors`: `runCount` counts runs, a sharded run once - it
+  counted every shard the error appeared in. Every count is over finished
+  runs of the source; runs still running or timed out no longer count, and
+  local ones only when asked for. `firstSeen` is the earliest such run still
+  stored; `unfingerprintedCount` covers the window only.
+- The descriptions of `squally-get-test-metrics`, `squally-list-tests` and
+  `squally-list-errors` and the server instructions say what `source` does,
+  that a run still in progress counts once all its shards have finished, and,
+  for errors, what failedCount and flakyCount mean. They said local runs never
+  count.
+- The vendored OpenAPI document is 1.0.0-beta.9 (beta.7 and beta.8
+  included). Changes outside the tools: `/overview` (beta.7, beta.8) and
+  `/errors/{fingerprint}`, whose `runs[].runId` is now the run's id as
+  `squally-find-run` gives it - neither has a tool.
 
-No tool was added or removed, and no input or output schema changed.
+### Removed
+
+- `squally-list-errors`: `isNew` on every error. Compare `firstSeen` with
+  `window.from` instead.
+
+No tool was added or removed.
 
 ## 0.3.0 — breaking: requires API 1.0.0-beta.6; a sharded CI run counts once in the test metrics
 
