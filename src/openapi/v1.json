@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.11",
+    "version": "1.0.0-beta.14",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -337,7 +337,7 @@
       "get": {
         "operationId": "listRuns",
         "summary": "List runs",
-        "description": "Runs in a period, newest first - one row per logical run (a sharded CI run is one row). Filter by branch, commit SHA prefix or outcome; page with the cursors. Cheap to moderate: one bounded scan.",
+        "description": "Runs in a period, newest first - one row per logical run (a sharded CI run is one row), placed in the period and ordered by the start of its first shard (since 1.0.0-beta.13). CI and local runs both, unless source narrows it. Filter by branch, commit SHA prefix, status or source; page with the cursors. Cheap to moderate: bounded by the period's runs.",
         "tags": [
           "Runs"
         ],
@@ -392,13 +392,31 @@
             "name": "status",
             "in": "query",
             "required": false,
-            "description": "Only runs with this outcome. A cancelled run matches neither value - only the unfiltered list has it.",
+            "description": "Only runs with this status - the status field's values. A cancelled run matches cancelled only (since 1.0.0-beta.14; passed and failed were the only values before it, and a cancelled run matched neither).",
             "schema": {
               "type": "string",
               "enum": [
                 "passed",
-                "failed"
+                "failed",
+                "cancelled",
+                "incomplete",
+                "running"
               ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Which runs are listed, by where they ran: all - every run (the default); ci - runs a shard reported a CI provider for; local - runs no shard did (each run's local field). Since 1.0.0-beta.14.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ci",
+                "local",
+                "all"
+              ],
+              "default": "all"
             }
           },
           {
@@ -474,8 +492,8 @@
                       "testedRevision": null,
                       "pullRequestNumber": null,
                       "status": "passed",
-                      "cancelled": false,
                       "cancellation": null,
+                      "local": false,
                       "startedAt": "2026-09-24T07:31:12.000Z",
                       "finishedAt": "2026-09-24T07:39:47.000Z",
                       "durationMs": 515000,
@@ -499,8 +517,8 @@
                       "testedRevision": "c4f7a1e9b3d5c8e2f0a6b4d9e1c7f3a5b8d2e0f6",
                       "pullRequestNumber": 318,
                       "status": "failed",
-                      "cancelled": false,
                       "cancellation": null,
+                      "local": false,
                       "startedAt": "2026-09-23T16:05:40.000Z",
                       "finishedAt": "2026-09-23T16:12:02.000Z",
                       "durationMs": 382000,
@@ -520,13 +538,13 @@
                       "commitSha": "5f1d9b3e7a2c6e0f8b4d2a9c7e1f5b3d8a6c0e4f",
                       "testedRevision": null,
                       "pullRequestNumber": 318,
-                      "status": "failed",
-                      "cancelled": true,
+                      "status": "cancelled",
                       "cancellation": {
                         "source": "reporter",
                         "at": "2026-09-23T15:58:31.000Z",
                         "byUserId": null
                       },
+                      "local": false,
                       "startedAt": "2026-09-23T15:55:02.000Z",
                       "finishedAt": "2026-09-23T15:58:31.000Z",
                       "durationMs": 209000,
@@ -831,8 +849,8 @@
                     "pullRequestTitle": null,
                     "ciProvider": "github-actions",
                     "status": "passed",
-                    "cancelled": false,
                     "cancellation": null,
+                    "local": false,
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "durationMs": 515000,
@@ -4589,19 +4607,15 @@
                   ]
                 },
                 "status": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "cancelled",
+                    "incomplete",
+                    "running"
                   ],
-                  "description": "passed | failed | running | incomplete - for a sharded run, the whole group's. Never \"cancelled\": a cancelled run keeps the outcome of what it reported, and says so in cancelled."
-                },
-                "cancelled": {
-                  "type": "boolean",
-                  "description": "True when the run was cancelled - for a sharded run, when any shard recorded a cancel. A cancelled run keeps its status (the outcome of what it reported before the stop) and never matches ?status=passed or ?status=failed."
+                  "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit or never reported; running - a shard is still running; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean."
                 },
                 "cancellation": {
                   "anyOf": [
@@ -4646,7 +4660,11 @@
                       "type": "null"
                     }
                   ],
-                  "description": "How and when the run was cancelled; null when it was not."
+                  "description": "How and when the run was cancelled; null when it was not - set exactly when status is cancelled."
+                },
+                "local": {
+                  "type": "boolean",
+                  "description": "No shard of the run reported a CI provider: a local run (since 1.0.0-beta.14). GET /runs lists both kinds unless source says otherwise."
                 },
                 "startedAt": {
                   "type": "string",
@@ -4678,7 +4696,8 @@
                   "type": "object",
                   "properties": {
                     "total": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "Tests in the run, every test once however many shards reported it - its final attempt across all of them decides (highest retry, then the lowest shard, then the first repetition). total = passed + failed + skipped + flaky. Since 1.0.0-beta.12; until then each shard's count was summed, so a test reported from two shards counted twice. In a cancelled run the tests the cancel interrupted - reported as skipped - count nowhere, so skipped there counts no test (since 1.0.0-beta.13); the run's tests list still has them."
                     },
                     "passed": {
                       "type": "integer"
@@ -4740,8 +4759,8 @@
                 "testedRevision",
                 "pullRequestNumber",
                 "status",
-                "cancelled",
                 "cancellation",
+                "local",
                 "startedAt",
                 "finishedAt",
                 "durationMs",
@@ -4897,11 +4916,14 @@
               },
               "status": {
                 "type": "string",
-                "description": "passed | failed | running | incomplete - the whole group's. Never \"cancelled\": a cancelled run keeps the outcome of what it reported, and says so in cancelled."
-              },
-              "cancelled": {
-                "type": "boolean",
-                "description": "True when the run was cancelled - for a sharded run, when any shard recorded a cancel. A cancelled run keeps its status (the outcome of what it reported before the stop) and never matches ?status=passed or ?status=failed."
+                "enum": [
+                  "passed",
+                  "failed",
+                  "cancelled",
+                  "incomplete",
+                  "running"
+                ],
+                "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit or never reported; running - a shard is still running; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean."
               },
               "cancellation": {
                 "anyOf": [
@@ -4946,7 +4968,11 @@
                     "type": "null"
                   }
                 ],
-                "description": "How and when the run was cancelled; null when it was not."
+                "description": "How and when the run was cancelled; null when it was not - set exactly when status is cancelled."
+              },
+              "local": {
+                "type": "boolean",
+                "description": "No shard of the run reported a CI provider: a local run (since 1.0.0-beta.14). GET /runs lists both kinds unless source says otherwise."
               },
               "startedAt": {
                 "type": "string",
@@ -5011,14 +5037,15 @@
                               "type": "string"
                             },
                             "status": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
+                              "type": "string",
+                              "enum": [
+                                "passed",
+                                "failed",
+                                "cancelled",
+                                "incomplete",
+                                "running"
+                              ],
+                              "description": "What this shard did, in the run status's words: cancelled when it recorded a cancel; else running or incomplete by its state; else failed when a test failed, passed otherwise. The shards panel's own rule (since 1.0.0-beta.14 - it was the shard's raw outcome, null until it finished)."
                             }
                           },
                           "required": [
@@ -5053,8 +5080,8 @@
               "pullRequestTitle",
               "ciProvider",
               "status",
-              "cancelled",
               "cancellation",
+              "local",
               "startedAt",
               "finishedAt",
               "durationMs",
@@ -5065,7 +5092,8 @@
             "type": "object",
             "properties": {
               "total": {
-                "type": "integer"
+                "type": "integer",
+                "description": "Tests in the run, every test once however many shards reported it - its final attempt across all of them decides (highest retry, then the lowest shard, then the first repetition). total = passed + failed + skipped + flaky. Since 1.0.0-beta.12; until then each shard's count was summed, so a test reported from two shards counted twice. In a cancelled run the tests the cancel interrupted - reported as skipped - count nowhere, so skipped there counts no test (since 1.0.0-beta.13); the run's tests list still has them."
               },
               "passed": {
                 "type": "integer"
@@ -5111,7 +5139,8 @@
                   "type": "string"
                 },
                 "attempts": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Every attempt of the test in the run, across all its shards (since 1.0.0-beta.12; per shard before)."
                 },
                 "durationMs": {
                   "anyOf": [
@@ -5202,7 +5231,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The shard the test's final attempt ran in; null for an unsharded run. One row per test since 1.0.0-beta.12 - a test reported from two shards was one row per shard before."
                 }
               },
               "required": [
@@ -5472,7 +5502,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The shard the test's final attempt ran in; null for an unsharded run. One row per test since 1.0.0-beta.12 - a test reported from two shards was one row per shard before."
                 }
               },
               "required": [
@@ -6770,15 +6801,14 @@
                     ]
                   },
                   "status": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": "string",
+                    "enum": [
+                      "passed",
+                      "failed",
+                      "cancelled",
+                      "incomplete"
                     ],
-                    "description": "The run's status over all its shards: passed or failed, or incomplete for a run finished by the run timeout - a shard timed out, was stopped by the monthly result limit or never reported (since 1.0.0-beta.10; the limit since 1.0.0-beta.11)."
+                    "description": "The run's status over all its shards, as GET /runs reports it - a finished run, so never running: passed, failed, cancelled, or incomplete for a run finished by the run timeout - a shard timed out, was stopped by the monthly result limit or never reported (incomplete since 1.0.0-beta.10, the limit since 1.0.0-beta.11; cancelled since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel)."
                   },
                   "startedAt": {
                     "type": "string",

@@ -45,7 +45,7 @@ const EXPECTED_PARAMS = {
   "squally-find-run": [
     "listRuns",
     ["projectId"],
-    ["days", "branch", "sha", "status", "cursor"],
+    ["days", "branch", "sha", "status", "source", "cursor"],
   ],
   "squally-get-run": ["getRun", ["projectId", "runId"], []],
   "squally-debug-failure": [
@@ -261,7 +261,11 @@ test("enums, defaults and bounds survive from the document into the input schema
   // period defaults to 30.
   assert.deepEqual(runs.days.enum, [7, 14, 30, 90]);
   assert.equal(runs.days.default, 30);
-  assert.deepEqual(runs.status.enum, ["passed", "failed"]);
+  // 0.5.0, API 1.0.0-beta.14: the dashboard's five, and the source filter -
+  // all by default, unlike the counting tools, because the list counts nothing.
+  assert.deepEqual(runs.status.enum, ["passed", "failed", "cancelled", "incomplete", "running"]);
+  assert.deepEqual(runs.source.enum, ["ci", "local", "all"]);
+  assert.equal(runs.source.default, "all");
   assert.equal(runs.sha.pattern, "^[0-9a-fA-F]{4,40}$");
   assert.equal(runs.branch.maxLength, 200);
 
@@ -498,9 +502,21 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // name the limit. The rest is squally-get-test-metrics' description: "with
   // the results its shards reported - also when a shard was stopped by the
   // monthly result limit", where it said "with the shards that finished".
+  //
+  // 0.5.0: b5f33880241a0860 -> 3c85144f5adf33f3. Re-vendored from API
+  // 1.0.0-beta.14 (squally-app S4.5, 04.10.2026; beta.12 and beta.13
+  // included). Breaking for the two run tools: status is one of passed,
+  // failed, cancelled, incomplete, running on squally-find-run's rows,
+  // squally-get-run's run and each of its shards, never null; cancelled
+  // (boolean) is gone, local (boolean) is new and required; squally-find-run
+  // takes source (ci, local, all - default all) and status takes all five. The
+  // re-vendor alone gives be2756c18a3318e1 (measured). The rest is the texts:
+  // squally-find-run says it finds CI and local runs, names the five statuses
+  // and that a sharded run's counters cover all its shards; squally-get-run
+  // says a cancelled run is cancelled and what local means.
   assert.equal(
     digest(toolList()),
-    "b5f33880241a0860",
+    "3c85144f5adf33f3",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -521,6 +537,30 @@ test("the server identifies as squally and carries the instructions", () => {
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +
       "and you judge them. If a test name is ambiguous, repeat with filePath from the " +
-      "error. Errors carry a code and an action; follow the action.",
+      "error. A run's status is passed, failed, cancelled, incomplete or running. " +
+      "Errors carry a code and an action; follow the action.",
   );
+});
+
+test("0.5.0: a run's status is the dashboard's five words, local is there and cancelled is gone", () => {
+  // API 1.0.0-beta.14 (squally-app S4.5): squally-find-run's rows and
+  // squally-get-run's run - and each shard of it - say passed, failed,
+  // cancelled, incomplete or running, never null; the cancelled boolean went,
+  // cancellation stayed; local is new and required.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const FIVE = ["passed", "failed", "cancelled", "incomplete", "running"];
+  const listed = byName["squally-find-run"].outputSchema.properties.runs.items;
+  const run = byName["squally-get-run"].outputSchema.properties.run;
+  for (const [name, schema] of [["squally-find-run", listed], ["squally-get-run", run]]) {
+    assert.deepEqual(schema.properties.status.enum, FIVE, name);
+    assert.equal(schema.properties.cancelled, undefined, `${name}: the cancelled flag is gone`);
+    assert.ok(schema.properties.cancellation, `${name}: cancellation stays`);
+    assert.equal(schema.properties.local.type, "boolean", name);
+    assert.ok(schema.required.includes("local") && !schema.required.includes("cancelled"), name);
+  }
+  const shard = run.properties.shards.anyOf.find((s) => s.type === "object").properties.received.items;
+  assert.deepEqual(shard.properties.status.enum, FIVE, "each shard in the same words");
+  assert.match(byName["squally-find-run"].description, /CI and local alike/);
+  assert.match(byName["squally-find-run"].description, /passed, failed, cancelled, incomplete or running/);
+  assert.match(byName["squally-get-run"].description, /cancelled for a cancelled run/);
 });

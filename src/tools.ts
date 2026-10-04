@@ -74,10 +74,12 @@ export const TOOLS: ToolDefinition[] = [
     title: "Find runs",
     operationId: "listRuns",
     description:
-      "Finds CI runs of a project - the latest, or filtered by branch, commit SHA or status. " +
-      "One row per logical run: a sharded run is collapsed into a single entry. Returns summary " +
+      "Finds runs of a project, CI and local alike - the latest, or filtered by branch, commit SHA, " +
+      "status or source (all by default; ci or local narrows it, and each run says local). Status " +
+      "is passed, failed, cancelled, incomplete or running. One row per logical run: a sharded run " +
+      "is collapsed into a single entry, its counters over all its shards. Returns summary " +
       "counters only; use squally-get-run for the per-test rows.",
-    answers: "Which runs happened — latest, or by branch, commit SHA or status. Counters only.",
+    answers: "Which runs happened — latest, or by branch, commit SHA, status or source. Counters only.",
     cost: "cheap",
   },
   {
@@ -86,7 +88,8 @@ export const TOOLS: ToolDefinition[] = [
     operationId: "getRun",
     description:
       "One run with its per-test result rows, across every shard. Use this to find out which " +
-      "test is red in a run; the run list carries only the counters.",
+      "test is red in a run; the run list carries only the counters. Its status is cancelled " +
+      "for a cancelled run (cancellation says how and when), and local says it ran without CI.",
     answers: "One run with its per-test rows, across all shards. Which test is red.",
     cost: "cheap",
   },

@@ -1,7 +1,7 @@
 # squally-mcp
 
 A local [MCP](https://modelcontextprotocol.io) server that lets a coding agent
-read your [Squally](https://app.squally.dev) data: which CI runs happened, how
+read your [Squally](https://app.squally.dev) data: which runs happened, how
 stable each test is, and why a particular test failed.
 
 It runs on your machine over stdio and talks to Squally's read API over HTTPS.
@@ -138,7 +138,7 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | Tool | What it answers | Cost |
 |---|---|---|
 | `squally-list-projects` | Which projects exist. **Start here** — every other tool needs a `projectId` from it. | cheap |
-| `squally-find-run` | Which runs happened — latest, or by branch, commit SHA or status. Counters only. | cheap |
+| `squally-find-run` | Which runs happened — latest, or by branch, commit SHA, status or source. Counters only. | cheap |
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
 | `squally-debug-failure` | Every attempt of one test in one run: error, stack, Copy-for-AI prompt. | cheap |
 | `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
@@ -147,6 +147,17 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 
 For a single test use `squally-get-test-metrics`, not `squally-list-tests` —
 the tool descriptions say so, and the server repeats it in its instructions.
+
+### Runs
+
+`squally-find-run` lists every run, CI and local alike; `source` (`all` by
+default, `ci` or `local`) narrows it, and each run says whether it was
+`local`. A run's `status` is the dashboard's word: `passed`, `failed`,
+`cancelled`, `incomplete` (a shard timed out, was stopped by the monthly
+result limit or never reported) or `running` - and `?status=` filters by
+any of them. A cancelled run is `cancelled`; `cancellation` says how, when
+and by whom. A sharded run is one row, its counters over all its shards with
+every test once, and the tests a cancel cut off count nowhere.
 
 ### What the numbers mean
 

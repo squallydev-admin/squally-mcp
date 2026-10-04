@@ -1,31 +1,61 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — breaking: requires API 1.0.0-beta.14; one run status, local runs listed
 
-**No new minimum API version.** 0.4.0 and this work against the read API
-1.0.0-beta.9, beta.10 and beta.11 alike: beta.10 and beta.11 changed what the
-numbers count, not a field or a value, so no output schema rejects any of
-them.
+**This version requires the read API 1.0.0-beta.14.** The output schemas of
+`squally-find-run` and `squally-get-run` require `status` to be one of
+`passed`, `failed`, `cancelled`, `incomplete` or `running` and require
+`local`, and no longer have `cancelled`, so against an older API a client
+that validates structured output (the MCP SDK's does) rejects their
+responses; 0.4.0 against beta.14 fails the same way, the other way round.
+app.squally.dev serves beta.14.
+
+### Added
+
+- `source` on `squally-find-run`: `all` (the default - every run, as
+  before), `ci` or `local`. Unlike the counting tools it defaults to all:
+  the run list counts nothing, it says what ran.
+- `local` on every run of `squally-find-run` and on `squally-get-run`'s run:
+  true when no shard of the run reported a CI provider.
 
 ### Changed
 
-- The vendored OpenAPI document is 1.0.0-beta.10. A run whose shard died or
-  never started now counts once the run timeout has passed, with the shards
-  that finished, like a cancelled run. The output-schema descriptions of
-  `population` (all three tools that return it) and `unfinishedRuns`
-  (`squally-list-errors`) say so.
-- `squally-get-test-metrics`' description and the server instructions say the
-  same: a run still in progress counts once all its shards have finished, or
-  once the run timeout has passed. They said only the first.
-- The vendored OpenAPI document is 1.0.0-beta.11. A shard stopped by the
-  monthly result limit is treated like one that timed out: once the run
-  timeout has passed, its run counts with the results its shards reported.
-  The same output-schema descriptions say so, and so do
-  `squally-get-test-metrics`' description and the server instructions, which
-  now say "with the results its shards reported" where they said "with the
-  shards that finished".
+- `status` on `squally-find-run`'s runs and `squally-get-run`'s run is the
+  dashboard's word: `passed`, `failed`, `cancelled`, `incomplete` or
+  `running`, never null. A cancelled run is `cancelled`; it reported the
+  outcome of what it ran before the stop.
+- `squally-find-run`'s `status` filter takes all five values; a cancelled
+  run matches `cancelled` only. It took `passed` and `failed`, and a
+  cancelled run matched neither.
+- `squally-get-run`: each shard's `status` (`run.shards.received[]`) in the
+  same words - `cancelled`, `running`, `incomplete`, `failed` or `passed`,
+  never null. It was the shard's own outcome, null until it finished.
+- Counters on `squally-find-run` and `squally-get-run` count every test
+  once over all of a run's shards, its final attempt chosen across them
+  (API 1.0.0-beta.12); they summed each shard. `squally-get-run`'s tests are
+  one row per test, `attempts` across every shard. The tests a cancel cut
+  off count nowhere (beta.13), and `squally-find-run` places and orders a
+  run by its first shard's start (beta.13).
+- A run whose shard died, never started or was stopped by the monthly
+  result limit counts once the run timeout has passed, with the results its
+  shards reported, like a cancelled run (API 1.0.0-beta.10 and beta.11). The
+  output-schema descriptions of `population` (all three tools that return
+  it) and `unfinishedRuns` (`squally-list-errors`), the description of
+  `squally-get-test-metrics` and the server instructions say so.
+- The descriptions of `squally-find-run` and `squally-get-run`, the server
+  instructions and the README say what the run status is, that runs of
+  either source are listed, and what `local` means.
+- The vendored OpenAPI document is 1.0.0-beta.14 (beta.10 to beta.13
+  included).
 
-No tool was added or removed, and no input or output schema changed shape.
+### Removed
+
+- `cancelled` (boolean) on `squally-find-run`'s runs and `squally-get-run`'s
+  run: it repeated `status === "cancelled"`. `cancellation` stays - where the
+  cancel came from, when and by whom - and is set exactly when `status` is
+  `cancelled`.
+
+No tool was added or removed.
 
 ## 0.4.0 — breaking: requires API 1.0.0-beta.9; local runs on request, errors counted per run
 
