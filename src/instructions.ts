@@ -38,6 +38,13 @@
 // here because a model that knew the old shape looks for a flag that no longer
 // exists, or reads "cancelled" as an unknown value.
 //
+// SETTLED AND THE JOB KEY SINCE 0.6.0 (API 1.0.0-beta.15): a run that is not
+// settled can still change - an incomplete one may still be waiting for a
+// shard - and one CI run can be several Squally runs, one per job key. Said
+// here because the newest run is the one an agent asks about, and an
+// unsettled "incomplete" read as final, or two runs of one commit read as a
+// duplicate, is the mistake.
+//
 // Exported as `squally-mcp/instructions` (package.json), so it stays a plain
 // constant - test/exports.test.js imports it through the package name.
 export const INSTRUCTIONS = [
@@ -52,6 +59,8 @@ export const INSTRUCTIONS = [
   "first try / runs; flakyRate = runs that passed only after a retry / runs;",
   "failureRate = failed runs / runs. There is no verdict: the tools return numbers,",
   "and you judge them. If a test name is ambiguous, repeat with filePath from the",
-  "error. A run's status is passed, failed, cancelled, incomplete or running.",
+  "error. A run's status is passed, failed, cancelled, incomplete or running;",
+  "a run that is not settled can still change. Each job of a CI run that sets a",
+  "job key is its own run (jobKey).",
   "Errors carry a code and an action; follow the action.",
 ].join(" ");

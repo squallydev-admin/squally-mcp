@@ -35,7 +35,7 @@ export function expiryLine(isoDate: string): string {
   const shown = Number.isNaN(parsed.getTime())
     ? isoDate
     : parsed.toISOString().slice(0, 10);
-  return `Note: this Squally read key expires on ${shown}. Create a new one in Settings -> API keys before then; expired keys are not renewed.`;
+  return `Note: this Squally read key expires on ${shown}. Create a new one in Organization -> Read keys before then; expired keys are not renewed.`;
 }
 
 export function successResult(data: unknown, keyExpiresAt: string | null): CallToolResult {

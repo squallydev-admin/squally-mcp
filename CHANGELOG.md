@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.6.0 — breaking: requires API 1.0.0-beta.15; job key, attempt, re-run link, CI link, settled
+
+**This version requires the read API 1.0.0-beta.15.** The output schemas of
+`squally-find-run` and `squally-get-run` require `settled`, `jobKey`,
+`attempt`, `rerunOf` and `ciRunUrl`, so against an older API a client that
+validates structured output (the MCP SDK's does) rejects their responses.
+0.5.0 keeps working against beta.15: its output schemas allow the new
+fields. app.squally.dev serves beta.15.
+
+### Added
+
+- `settled` on every run of `squally-find-run` and on `squally-get-run`'s
+  run: true when the run's status and counts are final and it counts in the
+  dashboard's figures. An `incomplete` run that is not settled still waits
+  for a shard within the run timeout.
+- `jobKey` on the same runs: the job key from squally-reporter 0.11.0
+  (`SQUALLY_CI_JOB_KEY`), or null. Each job with a key is its own run.
+- `attempt` on the same runs: which attempt of its CI run this is, 2 after
+  GitHub's Re-run failed jobs; null when not known.
+- `rerunOf` on the same runs: `{ id, runNumber }` of the run this one
+  re-ran, or null.
+- `ciRunUrl` on the same runs: the CI run's page, the run page's View in
+  CI link, or null.
+
+### Changed
+
+- The descriptions of `squally-find-run` and `squally-get-run`, the server
+  instructions and the README say what the new fields mean - that a run
+  that is not settled can still change, and that each job with a job key is
+  its own run.
+- The key's location in the README and in the configuration and expiry
+  messages is Organization › Read keys (it said Settings → API keys, a page
+  the app no longer has).
+- The README says the server reads CI and local runs (it said CI runs), and
+  `squally-get-test-metrics` says "no counted run" where it said "no counted
+  CI run" - it counts local runs when asked to.
+- The vendored OpenAPI document is 1.0.0-beta.15, with beta.14's
+  document-only corrections.
+
+No tool was added or removed.
+
 ## 0.5.0 — breaking: requires API 1.0.0-beta.14; one run status, local runs listed
 
 **This version requires the read API 1.0.0-beta.14.** The output schemas of

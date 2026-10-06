@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.14",
+    "version": "1.0.0-beta.15",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -337,7 +337,7 @@
       "get": {
         "operationId": "listRuns",
         "summary": "List runs",
-        "description": "Runs in a period, newest first - one row per logical run (a sharded CI run is one row), placed in the period and ordered by the start of its first shard (since 1.0.0-beta.13). CI and local runs both, unless source narrows it. Filter by branch, commit SHA prefix, status or source; page with the cursors. Cheap to moderate: bounded by the period's runs.",
+        "description": "Runs in a period, newest first - one row per logical run (a sharded CI run is one row; each job of a CI run that sets a job key is its own run, see jobKey), placed in the period and ordered by the start of its first shard (since 1.0.0-beta.13). CI and local runs both, unless source narrows it. Filter by branch, commit SHA prefix, status or source; page with the cursors. Cheap to moderate: bounded by the period's runs.",
         "tags": [
           "Runs"
         ],
@@ -494,6 +494,11 @@
                       "status": "passed",
                       "cancellation": null,
                       "local": false,
+                      "settled": true,
+                      "jobKey": null,
+                      "attempt": 1,
+                      "rerunOf": null,
+                      "ciRunUrl": "https://github.com/example-shop/storefront/actions/runs/18144270113/attempts/1",
                       "startedAt": "2026-09-24T07:31:12.000Z",
                       "finishedAt": "2026-09-24T07:39:47.000Z",
                       "durationMs": 515000,
@@ -519,6 +524,11 @@
                       "status": "failed",
                       "cancellation": null,
                       "local": false,
+                      "settled": true,
+                      "jobKey": null,
+                      "attempt": 1,
+                      "rerunOf": null,
+                      "ciRunUrl": "https://github.com/example-shop/storefront/actions/runs/18127766204/attempts/1",
                       "startedAt": "2026-09-23T16:05:40.000Z",
                       "finishedAt": "2026-09-23T16:12:02.000Z",
                       "durationMs": 382000,
@@ -545,6 +555,11 @@
                         "byUserId": null
                       },
                       "local": false,
+                      "settled": true,
+                      "jobKey": null,
+                      "attempt": 1,
+                      "rerunOf": null,
+                      "ciRunUrl": "https://github.com/example-shop/storefront/actions/runs/18127598830/attempts/1",
                       "startedAt": "2026-09-23T15:55:02.000Z",
                       "finishedAt": "2026-09-23T15:58:31.000Z",
                       "durationMs": 209000,
@@ -851,6 +866,11 @@
                     "status": "passed",
                     "cancellation": null,
                     "local": false,
+                    "settled": true,
+                    "jobKey": null,
+                    "attempt": 1,
+                    "rerunOf": null,
+                    "ciRunUrl": "https://github.com/example-shop/storefront/actions/runs/18144270113/attempts/1",
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "durationMs": 515000,
@@ -1693,7 +1713,7 @@
       "get": {
         "operationId": "listTests",
         "summary": "List tests",
-        "description": "Every test with a run of the source (CI by default) in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts completed runs of the source - CI by default - without mass-failure runs, on every branch unless branch names one (see population). Moderate: two queries over the period's CI results, paged in the database; use the metrics route for one test.",
+        "description": "Every test with a run of the source (CI by default) in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts finished runs of the source - CI by default - without mass-failure runs, on every branch unless branch names one (see population). Moderate: aggregate queries over the period's results of the source, paged in the database; use the metrics route for one test.",
         "tags": [
           "Tests"
         ],
@@ -3841,7 +3861,7 @@
       "get": {
         "operationId": "getOverview",
         "summary": "Get dashboard figures",
-        "description": "The dashboard for a period: last run, suite stability, time lost, the two test-metric tiles (testMetrics), slowest tests, time sinks, recent runs. Every figure counts finished runs of the source - CI by default - and testMetrics.population names it. Moderate: one pass over the period's runs and one count over its results.",
+        "description": "The dashboard for a period: last run, suite stability, time lost, the two test-metric tiles (testMetrics), slowest tests, time sinks, recent runs. Every figure counts finished runs of the source - CI by default - and testMetrics.population names it. Moderate: aggregate queries over the period's finished runs, run in the database - no result rows are loaded.",
         "tags": [
           "Project"
         ],
@@ -3957,9 +3977,9 @@
                   "testMetrics": {
                     "population": "ci_groups_finished_not_mass_failure",
                     "days": 30,
-                    "testsWithRetries": 7,
+                    "flakyTests": 7,
                     "failingTests": 2,
-                    "ciTests": 409
+                    "tests": 409
                   },
                   "slowestTests": [
                     {
@@ -4666,6 +4686,67 @@
                   "type": "boolean",
                   "description": "No shard of the run reported a CI provider: a local run (since 1.0.0-beta.14). GET /runs lists both kinds unless source says otherwise."
                 },
+                "settled": {
+                  "type": "boolean",
+                  "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while an incomplete run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+                },
+                "jobKey": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15."
+                },
+                "attempt": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Which attempt of its CI run this is - GitHub Actions' run attempt, 2 after Re-run failed jobs. null when the reporter did not say and the run id did not show it. Since 1.0.0-beta.15."
+                },
+                "rerunOf": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The earlier attempt's id - the one GET /runs/{runId} takes."
+                        },
+                        "runNumber": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "runNumber"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The run this one re-ran: the latest earlier attempt of the same CI run (and job key) that reported to Squally. null for a first attempt, when the earlier attempt never reported, or once retention deleted it. Since 1.0.0-beta.15."
+                },
+                "ciRunUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The CI run's page - the run page's View in CI link: the URL the reporter sent (squally-reporter 0.11.0; GitHub Actions links the attempt), else for GitHub Actions one built from the project's linked repository when it has exactly one. https only; null when neither applies. Since 1.0.0-beta.15."
+                },
                 "startedAt": {
                   "type": "string",
                   "format": "date-time"
@@ -4727,7 +4808,8 @@
                       "type": "object",
                       "properties": {
                         "received": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "How many shards reported."
                         },
                         "expected": {
                           "anyOf": [
@@ -4737,7 +4819,8 @@
                             {
                               "type": "null"
                             }
-                          ]
+                          ],
+                          "description": "How many shards the run waits for: the shard total the CI run declared - for a re-run, the shards it re-ran (those that had not passed before it; the others are not run again and do not report). null when no shard declared a total. The run is complete when every expected shard has completed."
                         }
                       },
                       "required": [
@@ -4761,6 +4844,11 @@
                 "status",
                 "cancellation",
                 "local",
+                "settled",
+                "jobKey",
+                "attempt",
+                "rerunOf",
+                "ciRunUrl",
                 "startedAt",
                 "finishedAt",
                 "durationMs",
@@ -4974,6 +5062,67 @@
                 "type": "boolean",
                 "description": "No shard of the run reported a CI provider: a local run (since 1.0.0-beta.14). GET /runs lists both kinds unless source says otherwise."
               },
+              "settled": {
+                "type": "boolean",
+                "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while an incomplete run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+              },
+              "jobKey": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15."
+              },
+              "attempt": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Which attempt of its CI run this is - GitHub Actions' run attempt, 2 after Re-run failed jobs. null when the reporter did not say and the run id did not show it. Since 1.0.0-beta.15."
+              },
+              "rerunOf": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The earlier attempt's id - the one GET /runs/{runId} takes."
+                      },
+                      "runNumber": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "runNumber"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The run this one re-ran: the latest earlier attempt of the same CI run (and job key) that reported to Squally. null for a first attempt, when the earlier attempt never reported, or once retention deleted it. Since 1.0.0-beta.15."
+              },
+              "ciRunUrl": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The CI run's page - the run page's View in CI link: the URL the reporter sent (squally-reporter 0.11.0; GitHub Actions links the attempt), else for GitHub Actions one built from the project's linked repository when it has exactly one. https only; null when neither applies. Since 1.0.0-beta.15."
+              },
               "startedAt": {
                 "type": "string",
                 "format": "date-time"
@@ -5013,7 +5162,8 @@
                           {
                             "type": "null"
                           }
-                        ]
+                        ],
+                        "description": "How many shards the run waits for: the shard total the CI run declared - for a re-run, the shards it re-ran (those that had not passed before it; the others are not run again and do not report). null when no shard declared a total. The run is complete when every expected shard has completed."
                       },
                       "received": {
                         "type": "array",
@@ -5082,6 +5232,11 @@
               "status",
               "cancellation",
               "local",
+              "settled",
+              "jobKey",
+              "attempt",
+              "rerunOf",
+              "ciRunUrl",
               "startedAt",
               "finishedAt",
               "durationMs",
@@ -5503,7 +5658,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The shard the test's final attempt ran in; null for an unsharded run. One row per test since 1.0.0-beta.12 - a test reported from two shards was one row per shard before."
+                  "description": "The shard this attempt ran in; null for an unsharded run."
                 }
               },
               "required": [
@@ -6957,27 +7112,27 @@
                 "type": "integer",
                 "description": "The period in days: the same as window.days."
               },
-              "testsWithRetries": {
+              "flakyTests": {
                 "type": "integer",
-                "description": "Of ciTests, the tests with at least one flaky run in the period (a final attempt that passed after a retry)."
+                "description": "Of tests, the tests with at least one flaky run in the period (a final attempt that passed after a retry) - the dashboard's Flaky tests tile. Called testsWithRetries until 1.0.0-beta.15."
               },
               "failingTests": {
                 "type": "integer",
-                "description": "Of ciTests, the tests with at least one failed run in the period."
+                "description": "Of tests, the tests with at least one failed run in the period."
               },
-              "ciTests": {
+              "tests": {
                 "type": "integer",
-                "description": "Tests with at least one run of the population in the period - CI runs by default; the name is from when only CI runs counted."
+                "description": "Tests with at least one run of the population in the period - CI runs by default. Called ciTests until 1.0.0-beta.15."
               }
             },
             "required": [
               "population",
               "days",
-              "testsWithRetries",
+              "flakyTests",
               "failingTests",
-              "ciTests"
+              "tests"
             ],
-            "description": "The dashboard's Tests with retries and Failing tests tiles and their denominator, counted like /tests on branchScope (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
+            "description": "The dashboard's Flaky tests and Failing tests tiles and their denominator, counted like /tests on branchScope (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
           },
           "slowestTests": {
             "type": "array",

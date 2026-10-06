@@ -76,9 +76,12 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "Finds runs of a project, CI and local alike - the latest, or filtered by branch, commit SHA, " +
       "status or source (all by default; ci or local narrows it, and each run says local). Status " +
-      "is passed, failed, cancelled, incomplete or running. One row per logical run: a sharded run " +
-      "is collapsed into a single entry, its counters over all its shards. Returns summary " +
-      "counters only; use squally-get-run for the per-test rows.",
+      "is passed, failed, cancelled, incomplete or running; settled is false while the run can " +
+      "still change. One row per logical run: a sharded run is collapsed into a single entry, its " +
+      "counters over all its shards; each job of a CI run that sets a job key is its own run " +
+      "(jobKey). attempt and rerunOf say which attempt of its CI run it is and which run it " +
+      "re-ran; ciRunUrl links the CI run. Returns summary counters only; use squally-get-run for " +
+      "the per-test rows.",
     answers: "Which runs happened — latest, or by branch, commit SHA, status or source. Counters only.",
     cost: "cheap",
   },
@@ -89,7 +92,9 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "One run with its per-test result rows, across every shard. Use this to find out which " +
       "test is red in a run; the run list carries only the counters. Its status is cancelled " +
-      "for a cancelled run (cancellation says how and when), and local says it ran without CI.",
+      "for a cancelled run (cancellation says how and when), and local says it ran without CI. " +
+      "Like squally-find-run it carries settled, jobKey, attempt, rerunOf and ciRunUrl - for a " +
+      "re-run, rerunOf.id is the run it re-ran, to compare with.",
     answers: "One run with its per-test rows, across all shards. Which test is red.",
     cost: "cheap",
   },
@@ -121,7 +126,7 @@ export const TOOLS: ToolDefinition[] = [
       "results its shards reported - also when a shard was stopped by the monthly result " +
       "limit. There " +
       "is no verdict - the tool returns the numbers and you judge them. runs = 0 " +
-      "with null rates is a valid answer: no counted CI run of this test in the period. " +
+      "with null rates is a valid answer: no counted run of this test in the period. " +
       "Cheap; for one test use this, not squally-list-tests.",
     answers: "One test's stability, flaky rate and failure rate over a period.",
     cost: "cheap",

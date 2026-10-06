@@ -24,8 +24,8 @@ Worth knowing before you hand a key to an assistant. Through this server an
 agent can read:
 
 - your **projects**, their names and stable branches;
-- your **CI runs** — commit SHA and message, branch, author, pull request,
-  timing, pass/fail counts;
+- your **runs**, CI and local — commit SHA and message, branch, author, pull
+  request, job key, a link to the CI run, timing, pass/fail counts;
 - **per-test results** for a run, including which shard ran what;
 - for a failing attempt: the **error message and stack**, the **code snippet**
   — **verbatim source code from your test file** — and the **Copy-for-AI
@@ -40,13 +40,13 @@ It cannot see screenshots, videos or traces — artifacts are deliberately out o
 scope — and it cannot see any key, secret or webhook URL.
 
 The key reaches **every project in the organization**. Create one per machine so
-a single revocation does not lock out everything, and revoke it in Settings →
-API keys when the machine is retired.
+a single revocation does not lock out everything, and revoke it under
+Organization › Read keys when the machine is retired.
 
 ## Setup
 
-You need an **organization read key** (`sqly_ro_…`): Squally → Settings → API
-keys → *Create read key*. It is shown once. It is not the same thing as the
+You need an **organization read key** (`sqly_ro_…`): Squally → Organization ›
+Read keys → *Create read key*. It is shown once. It is not the same thing as the
 project ingest key your Playwright reporter uses — this server refuses that one
 by name.
 
@@ -159,6 +159,14 @@ any of them. A cancelled run is `cancelled`; `cancellation` says how, when
 and by whom. A sharded run is one row, its counters over all its shards with
 every test once, and the tests a cancel cut off count nowhere.
 
+Each run also says whether it is `settled` - final and counted; an
+`incomplete` run that is not settled still waits for a shard within the run
+timeout - and, from squally-reporter 0.11.0, which job of its CI run it is
+(`jobKey`, from `SQUALLY_CI_JOB_KEY`; each job is its own run), which
+`attempt`, which run it re-ran (`rerunOf`) and where the CI run is
+(`ciRunUrl`; for GitHub Actions also for older reporters when the project
+has one linked repository).
+
 ### What the numbers mean
 
 The two test tools count **finished CI runs** in the period (7, 14, 30 or 90
@@ -236,7 +244,7 @@ The same numbers as that test's row, for one test (abridged):
 
 Pass the name exactly as Squally shows it. When it exists in several spec
 files, the tool answers with the `filePath` values to retry with; a test with
-results but no counted CI run in the period answers `runs: 0` and `null`
+results but no counted run in the period answers `runs: 0` and `null`
 rates — an answer, not an error.
 
 ## Development

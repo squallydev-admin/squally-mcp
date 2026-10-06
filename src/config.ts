@@ -69,7 +69,7 @@ export function resolveConfig(env: NodeJS.ProcessEnv, version: string): ConfigRe
       ok: false,
       message:
         "SQUALLY_API_KEY is not set. Create an organization read key in Squally under " +
-        "Settings -> API keys and set it in this server's environment.",
+        "Organization -> Read keys and set it in this server's environment.",
     };
   }
 
@@ -81,7 +81,7 @@ export function resolveConfig(env: NodeJS.ProcessEnv, version: string): ConfigRe
       ok: false,
       message:
         "SQUALLY_API_KEY looks like a project ingest key; the MCP server needs an " +
-        "organization read key (Settings -> API keys). A read key starts with " +
+        "organization read key (Organization -> Read keys). A read key starts with " +
         `${READ_KEY_PREFIX} and is created separately from the ingest key your ` +
         "Playwright reporter uses.",
     };

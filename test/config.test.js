@@ -21,7 +21,7 @@ test("a missing key is one clear line naming the variable and where to get one",
     const result = resolveConfig(env, "1.0.0");
     assert.equal(result.ok, false, JSON.stringify(env));
     assert.match(result.message, /SQUALLY_API_KEY is not set/);
-    assert.match(result.message, /Settings -> API keys/);
+    assert.match(result.message, /Organization -> Read keys/);
   }
 });
 
@@ -30,7 +30,7 @@ test("an ingest key is refused by name, not by a 401 from the server", () => {
   assert.equal(result.ok, false);
   assert.match(result.message, /project ingest key/);
   assert.match(result.message, /organization read key/);
-  assert.match(result.message, /Settings -> API keys/);
+  assert.match(result.message, /Organization -> Read keys/);
 });
 
 test("no refusal message ever contains the key itself", () => {

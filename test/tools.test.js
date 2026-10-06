@@ -514,9 +514,20 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // squally-find-run says it finds CI and local runs, names the five statuses
   // and that a sharded run's counters cover all its shards; squally-get-run
   // says a cancelled run is cancelled and what local means.
+  //
+  // 0.6.0: 3c85144f5adf33f3 -> 106184c19163cee2. Re-vendored from API
+  // 1.0.0-beta.15 (squally-app block 1b S5, 06.10.2026; beta.14's
+  // document-only entry included). squally-find-run's rows and
+  // squally-get-run's run gain settled (boolean), jobKey, attempt, rerunOf
+  // ({id, runNumber}) and ciRunUrl - all required, the last four nullable;
+  // shards.expected gains its description. The re-vendor alone gives
+  // 9612c1aacf13a1a8 (measured). The rest is the texts: squally-find-run names
+  // settled, the job key, attempt, rerunOf and ciRunUrl; squally-get-run says
+  // it carries them and what rerunOf.id is for; squally-get-test-metrics says
+  // "no counted run", not "no counted CI run" (it counts local runs on request).
   assert.equal(
     digest(toolList()),
-    "3c85144f5adf33f3",
+    "106184c19163cee2",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -537,7 +548,9 @@ test("the server identifies as squally and carries the instructions", () => {
       "first try / runs; flakyRate = runs that passed only after a retry / runs; " +
       "failureRate = failed runs / runs. There is no verdict: the tools return numbers, " +
       "and you judge them. If a test name is ambiguous, repeat with filePath from the " +
-      "error. A run's status is passed, failed, cancelled, incomplete or running. " +
+      "error. A run's status is passed, failed, cancelled, incomplete or running; " +
+      "a run that is not settled can still change. Each job of a CI run that sets a " +
+      "job key is its own run (jobKey). " +
       "Errors carry a code and an action; follow the action.",
   );
 });
@@ -563,4 +576,29 @@ test("0.5.0: a run's status is the dashboard's five words, local is there and ca
   assert.match(byName["squally-find-run"].description, /CI and local alike/);
   assert.match(byName["squally-find-run"].description, /passed, failed, cancelled, incomplete or running/);
   assert.match(byName["squally-get-run"].description, /cancelled for a cancelled run/);
+});
+
+test("0.6.0: the run tools carry settled, jobKey, attempt, rerunOf and ciRunUrl", () => {
+  // API 1.0.0-beta.15 (squally-app block 1b S5): what the run page's header
+  // shows beside the status. All five are required; settled is a boolean, the
+  // others are null when they do not apply.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const listed = byName["squally-find-run"].outputSchema.properties.runs.items;
+  const run = byName["squally-get-run"].outputSchema.properties.run;
+  const nullable = (property, type) => property.anyOf?.some((s) => s.type === type) && property.anyOf.some((s) => s.type === "null");
+  for (const [name, schema] of [["squally-find-run", listed], ["squally-get-run", run]]) {
+    for (const field of ["settled", "jobKey", "attempt", "rerunOf", "ciRunUrl"]) {
+      assert.ok(schema.required.includes(field), `${name}: ${field} is required`);
+    }
+    assert.equal(schema.properties.settled.type, "boolean", name);
+    assert.ok(nullable(schema.properties.jobKey, "string"), `${name}: jobKey`);
+    assert.ok(nullable(schema.properties.attempt, "integer"), `${name}: attempt`);
+    assert.ok(nullable(schema.properties.ciRunUrl, "string"), `${name}: ciRunUrl`);
+    const rerunOf = schema.properties.rerunOf.anyOf.find((s) => s.type === "object");
+    assert.deepEqual(Object.keys(rerunOf.properties).sort(), ["id", "runNumber"], `${name}: rerunOf`);
+  }
+  assert.match(byName["squally-find-run"].description, /settled is false while the run can still change/);
+  assert.match(byName["squally-find-run"].description, /its own run \(jobKey\)/);
+  assert.match(byName["squally-get-run"].description, /rerunOf\.id is the run it re-ran/);
+  assert.match(INSTRUCTIONS, /a run that is not settled can still change/);
 });
