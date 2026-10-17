@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `src/openapi/v1.json` re-vendored from the read API 1.0.0-beta.16. No
+  shape changed: `listErrors` names its order, and `copyPrompt` names the
+  button that now copies it, Copy the full context in Squally's Debug with
+  AI panel.
+- `squally-debug-failure` calls that text the full-context prompt, not the
+  Copy-for-AI prompt (the Copy for AI button is gone from Squally).
+- `squally-list-errors` is titled "List errors", not "List error
+  signatures", like the Squally page.
+
 ## 0.6.0 — breaking: requires API 1.0.0-beta.15; job key, attempt, re-run link, CI link, settled
 
 **This version requires the read API 1.0.0-beta.15.** The output schemas of

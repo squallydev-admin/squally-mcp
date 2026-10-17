@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.15",
+    "version": "1.0.0-beta.16",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -3136,7 +3136,7 @@
       "get": {
         "operationId": "listErrors",
         "summary": "List errors",
-        "description": "List errors. The project's errors in a period - failures grouped by fingerprint - most frequent first, over the finished runs of the source (see population), all shards of a run one run. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query.",
+        "description": "List errors. The project's errors in a period - failures grouped by fingerprint - most frequent first: by occurrences, then runs, then tests, ties by fingerprint, so a page never changes order between two requests over the same data. Over the finished runs of the source (see population), all shards of a run one run. Every count covers the period; firstSeen is the first occurrence still stored, not bounded by it. Moderate: one aggregate query, paged in the database.",
         "tags": [
           "Errors"
         ],
@@ -5628,7 +5628,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "A prompt for an assistant that has the repository open, byte-identical to the Copy for AI button. null for an attempt without a real failure (a pass, a test.fail() marker, no error text)."
+                  "description": "A prompt for an assistant that has the repository open, byte-identical to the text that Copy the full context puts on the clipboard (Debug with AI on the attempt page). null for an attempt without a real failure (a pass, a test.fail() marker, no error text)."
                 },
                 "shard": {
                   "anyOf": [

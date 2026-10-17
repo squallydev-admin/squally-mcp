@@ -28,8 +28,8 @@ agent can read:
   request, job key, a link to the CI run, timing, pass/fail counts;
 - **per-test results** for a run, including which shard ran what;
 - for a failing attempt: the **error message and stack**, the **code snippet**
-  — **verbatim source code from your test file** — and the **Copy-for-AI
-  prompt**, which carries the same snippet plus an **ARIA snapshot of your
+  — **verbatim source code from your test file** — and the **full-context
+  prompt** (the text behind Copy the full context in Squally), which carries the same snippet plus an **ARIA snapshot of your
   application at the moment of failure** (whatever was on screen, truncated to
   3000 characters);
 - **per-test metrics**: how often each test passed on the first try, passed
@@ -140,7 +140,7 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | `squally-list-projects` | Which projects exist. **Start here** — every other tool needs a `projectId` from it. | cheap |
 | `squally-find-run` | Which runs happened — latest, or by branch, commit SHA, status or source. Counters only. | cheap |
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
-| `squally-debug-failure` | Every attempt of one test in one run: error, stack, Copy-for-AI prompt. | cheap |
+| `squally-debug-failure` | Every attempt of one test in one run: error, stack, full-context prompt. | cheap |
 | `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
 | `squally-list-tests` | Every test with a CI run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
 | `squally-list-errors` | Error signatures in a period: what keeps failing, grouped, and how its runs ended. | cheap |

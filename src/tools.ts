@@ -104,9 +104,10 @@ export const TOOLS: ToolDefinition[] = [
     operationId: "getRunTestAttempts",
     description:
       "Every attempt of one test in one run, oldest first, each with the error, the stack and " +
-      "the Copy-for-AI prompt (the same text the Squally UI puts on the clipboard). This is the " +
+      "the full-context prompt (the same text Copy the full context puts on the clipboard in " +
+      "Squally's Debug with AI panel). This is the " +
       "tool for 'why did this test fail'. If the test name is ambiguous, pass filePath.",
-    answers: "Every attempt of one test in one run: error, stack, Copy-for-AI prompt.",
+    answers: "Every attempt of one test in one run: error, stack, full-context prompt.",
     cost: "cheap",
   },
   {
@@ -146,7 +147,7 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: "squally-list-errors",
-    title: "List error signatures",
+    title: "List errors",
     operationId: "listErrors",
     description:
       "The project's error signatures in a period: failures grouped by fingerprint, with how " +

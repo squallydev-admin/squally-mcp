@@ -525,9 +525,17 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // settled, the job key, attempt, rerunOf and ciRunUrl; squally-get-run says
   // it carries them and what rerunOf.id is for; squally-get-test-metrics says
   // "no counted run", not "no counted CI run" (it counts local runs on request).
+  //
+  // Unreleased: 106184c19163cee2 -> 7db8b51e54dc5b64. Re-vendored from API
+  // 1.0.0-beta.16 (squally-app, 10.10.2026 and the text-only entry of
+  // 17.10.2026). No shape changed. The re-vendor alone gives e7711e32b82d4646
+  // (measured): listErrors' description names its order, and copyPrompt names
+  // Copy the full context instead of the Copy for AI button. The rest is the
+  // texts: squally-debug-failure says "full-context prompt", and
+  // squally-list-errors is titled "List errors".
   assert.equal(
     digest(toolList()),
-    "106184c19163cee2",
+    "7db8b51e54dc5b64",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
