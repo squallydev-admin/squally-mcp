@@ -526,7 +526,7 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // it carries them and what rerunOf.id is for; squally-get-test-metrics says
   // "no counted run", not "no counted CI run" (it counts local runs on request).
   //
-  // Unreleased: 106184c19163cee2 -> 7db8b51e54dc5b64. Re-vendored from API
+  // 0.6.1: 106184c19163cee2 -> 7db8b51e54dc5b64. Re-vendored from API
   // 1.0.0-beta.16 (squally-app, 10.10.2026 and the text-only entry of
   // 17.10.2026). No shape changed. The re-vendor alone gives e7711e32b82d4646
   // (measured): listErrors' description names its order, and copyPrompt names

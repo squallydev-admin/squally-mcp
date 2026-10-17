@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — text only: follows read API 1.0.0-beta.16
 
 ### Changed
 
