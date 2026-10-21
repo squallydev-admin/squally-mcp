@@ -72,7 +72,6 @@ const EXPECTED_OUTPUT_KEYS = {
   "squally-find-run": [
     "project",
     "window",
-    "stableBranch",
     "runs",
     "total",
     "nextCursor",
@@ -533,9 +532,18 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // Copy the full context instead of the Copy for AI button. The rest is the
   // texts: squally-debug-failure says "full-context prompt", and
   // squally-list-errors is titled "List errors".
+  //
+  // 0.7.0: 7db8b51e54dc5b64 -> 46242689febdd1fb. Re-vendored from API
+  // 1.0.0-beta.17 (squally-app, stable branch removed, 21.10.2026; beta.16's
+  // behaviour-change entry of 20.10.2026 included). The re-vendor alone: the
+  // stableBranch property and its required entry leave squally-list-projects'
+  // projects and squally-find-run's top level, and the status and settled
+  // descriptions of squally-find-run's rows and squally-get-run's run say a
+  // run waiting for a shard is running until it is overdue. No text of ours
+  // changed.
   assert.equal(
     digest(toolList()),
-    "7db8b51e54dc5b64",
+    "46242689febdd1fb",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

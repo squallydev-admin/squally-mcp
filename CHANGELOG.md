@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 — breaking: follows read API 1.0.0-beta.17; no stable branch
+
+The read API 1.0.0-beta.17 drops the project's stable branch. 0.6.1's
+output schemas require `stableBranch`, so against beta.17 a client that
+validates structured output (the MCP SDK's does) rejects the responses of
+`squally-list-projects` and `squally-find-run`. 0.7.0 works against
+beta.16 and beta.17: its schemas no longer require the field, and an extra
+field is allowed.
+
+### Removed
+
+- `stableBranch` from `squally-list-projects` (each project) and from
+  `squally-find-run`.
+
+### Changed
+
+- `src/openapi/v1.json` re-vendored from the read API 1.0.0-beta.17. It
+  also brings beta.16's change of 20.10.2026 into the descriptions of
+  `status` and `settled` on `squally-find-run` and `squally-get-run`: a
+  run waiting for a shard is `running` until it is overdue.
+
 ## 0.6.1 — text only: follows read API 1.0.0-beta.16
 
 ### Changed

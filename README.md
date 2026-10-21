@@ -23,7 +23,7 @@ by the API, not by this client.
 Worth knowing before you hand a key to an assistant. Through this server an
 agent can read:
 
-- your **projects**, their names and stable branches;
+- your **projects** and their names;
 - your **runs**, CI and local — commit SHA and message, branch, author, pull
   request, job key, a link to the CI run, timing, pass/fail counts;
 - **per-test results** for a run, including which shard ran what;

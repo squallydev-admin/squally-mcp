@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.16",
+    "version": "1.0.0-beta.17",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -173,13 +173,11 @@
                     {
                       "id": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
                       "name": "storefront-web",
-                      "stableBranch": "main",
                       "createdAt": "2026-06-02T09:14:00.000Z"
                     },
                     {
                       "id": "a8d4e1c7-6f20-4b93-8e5a-1c7d3b9f0e42",
                       "name": "admin-console",
-                      "stableBranch": "develop",
                       "createdAt": "2026-07-18T13:40:00.000Z"
                     }
                   ]
@@ -482,7 +480,6 @@
                     "from": "2026-08-25T08:00:00.000Z",
                     "to": "2026-09-24T08:00:00.000Z"
                   },
-                  "stableBranch": "main",
                   "runs": [
                     {
                       "id": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
@@ -3895,14 +3892,11 @@
             "name": "branch",
             "in": "query",
             "required": false,
-            "description": "stable: the project's stable branch only; all: every branch.",
+            "description": "Exact branch name: every figure counts that branch's runs. Every branch when absent or all (since 1.0.0-beta.17; it took stable or all, default stable, before - stable is now a 400).",
             "schema": {
               "type": "string",
-              "enum": [
-                "stable",
-                "all"
-              ],
-              "default": "stable"
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           {
@@ -3944,8 +3938,7 @@
                     "from": "2026-08-25T08:00:00.000Z",
                     "to": "2026-09-24T08:00:00.000Z"
                   },
-                  "branchScope": "stable",
-                  "stableBranch": "main",
+                  "branch": "main",
                   "lastRun": {
                     "id": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71",
                     "runNumber": 1284,
@@ -3957,8 +3950,7 @@
                     "passed": 404,
                     "flaky": 4,
                     "failed": 0,
-                    "skipped": 4,
-                    "isFallbackBranch": false
+                    "skipped": 4
                   },
                   "runsInWindow": 11,
                   "unfinishedRuns": 1,
@@ -4244,7 +4236,7 @@
       "get": {
         "operationId": "getSettings",
         "summary": "Get settings",
-        "description": "Get the project configuration. Stable branch, the plan's retention, Slack events, PR comments. Configuration only - never a key, token or webhook. Cheap.",
+        "description": "Get the project configuration. The plan's retention, Slack events, PR comments. Configuration only - never a key, token or webhook. Cheap.",
         "tags": [
           "Project"
         ],
@@ -4278,7 +4270,6 @@
                     "name": "storefront-web"
                   },
                   "settings": {
-                    "stableBranch": "main",
                     "retentionDays": 60,
                     "slack": {
                       "configured": true,
@@ -4510,9 +4501,6 @@
                 "name": {
                   "type": "string"
                 },
-                "stableBranch": {
-                  "type": "string"
-                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time"
@@ -4521,7 +4509,6 @@
               "required": [
                 "id",
                 "name",
-                "stableBranch",
                 "createdAt"
               ]
             }
@@ -4569,9 +4556,6 @@
               "from",
               "to"
             ]
-          },
-          "stableBranch": {
-            "type": "string"
           },
           "runs": {
             "type": "array",
@@ -4635,7 +4619,7 @@
                     "incomplete",
                     "running"
                   ],
-                  "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit or never reported; running - a shard is still running; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean."
+                  "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its latest shard's start; running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
                 },
                 "cancellation": {
                   "anyOf": [
@@ -4688,7 +4672,7 @@
                 },
                 "settled": {
                   "type": "boolean",
-                  "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while an incomplete run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+                  "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
                 },
                 "jobKey": {
                   "anyOf": [
@@ -4886,7 +4870,6 @@
         "required": [
           "project",
           "window",
-          "stableBranch",
           "runs",
           "total",
           "nextCursor",
@@ -5011,7 +4994,7 @@
                   "incomplete",
                   "running"
                 ],
-                "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit or never reported; running - a shard is still running; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean."
+                "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its latest shard's start; running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
               },
               "cancellation": {
                 "anyOf": [
@@ -5064,7 +5047,7 @@
               },
               "settled": {
                 "type": "boolean",
-                "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while an incomplete run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+                "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
               },
               "jobKey": {
                 "anyOf": [
@@ -6923,15 +6906,16 @@
               "to"
             ]
           },
-          "branchScope": {
-            "type": "string",
-            "enum": [
-              "stable",
-              "all"
-            ]
-          },
-          "stableBranch": {
-            "type": "string"
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The branch every figure counts - the branch parameter - or null for every branch (since 1.0.0-beta.17; branchScope and stableBranch until then)."
           },
           "lastRun": {
             "anyOf": [
@@ -7000,9 +6984,6 @@
                   "skipped": {
                     "type": "integer",
                     "description": "Since 1.0.0-beta.7."
-                  },
-                  "isFallbackBranch": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -7016,23 +6997,22 @@
                   "passed",
                   "flaky",
                   "failed",
-                  "skipped",
-                  "isFallbackBranch"
+                  "skipped"
                 ]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "The newest finished run of the source on branchScope, whatever the window - falling back to any branch when the stable branch has none (see the source parameter and testMetrics.population)."
+            "description": "The newest finished run of the source on the branch, whatever the window (see the source parameter and testMetrics.population); null when there is none. No fallback to another branch since 1.0.0-beta.17, and no isFallbackBranch."
           },
           "runsInWindow": {
             "type": "integer",
-            "description": "Finished runs of the source in the window on branchScope (see the source parameter and testMetrics.population), each counted once however many shards it had, by the start of its first shard; mass-failure, cancelled and incomplete runs included (incomplete - finished by the run timeout - since 1.0.0-beta.10). The runs windowStability is counted over."
+            "description": "Finished runs of the source in the window on the branch (see the source parameter and testMetrics.population), each counted once however many shards it had, by the start of its first shard; mass-failure, cancelled and incomplete runs included (incomplete - finished by the run timeout - since 1.0.0-beta.10). The runs windowStability is counted over."
           },
           "unfinishedRuns": {
             "type": "integer",
-            "description": "Runs of the source in the window on branchScope that have not finished - a shard still running, or one timed out, stopped by the monthly result limit or never reported while the run is not yet overdue (an overdue one is finished and counted since 1.0.0-beta.10; a limit-stopped one since 1.0.0-beta.11). In no other figure (since 1.0.0-beta.7; of the source since 1.0.0-beta.8)."
+            "description": "Runs of the source in the window on the branch that have not finished - a shard still running, or one timed out, stopped by the monthly result limit or never reported while the run is not yet overdue (an overdue one is finished and counted since 1.0.0-beta.10; a limit-stopped one since 1.0.0-beta.11). In no other figure (since 1.0.0-beta.7; of the source since 1.0.0-beta.8)."
           },
           "suiteSize": {
             "type": "integer",
@@ -7047,7 +7027,7 @@
                 "type": "null"
               }
             ],
-            "description": "Suite stability, 0-100: of the final test results in the window's finished runs of the source on branchScope (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists."
+            "description": "Suite stability, 0-100: of the final test results in the window's finished runs of the source on the branch (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists."
           },
           "timeLost": {
             "type": "object",
@@ -7078,7 +7058,7 @@
               "wastedAttempts",
               "wallClockMs"
             ],
-            "description": "Time spent on attempts a later retry superseded, in the window's finished runs of the source on branchScope; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
+            "description": "Time spent on attempts a later retry superseded, in the window's finished runs of the source on the branch; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
           },
           "failingTests": {
             "type": "object",
@@ -7094,7 +7074,7 @@
               "failing",
               "testsRun"
             ],
-            "description": "Tests whose final attempt failed in at least one of the window's finished runs of the source on branchScope, out of the tests those runs reported (a skipped test counts as reported)."
+            "description": "Tests whose final attempt failed in at least one of the window's finished runs of the source on the branch, out of the tests those runs reported (a skipped test counts as reported)."
           },
           "testMetrics": {
             "type": "object",
@@ -7132,7 +7112,7 @@
               "failingTests",
               "tests"
             ],
-            "description": "The dashboard's Flaky tests and Failing tests tiles and their denominator, counted like /tests on branchScope (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
+            "description": "The dashboard's Flaky tests and Failing tests tiles and their denominator, counted like /tests on the branch (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
           },
           "slowestTests": {
             "type": "array",
@@ -7230,14 +7210,13 @@
                 "durationMs"
               ]
             },
-            "description": "The last 30 finished runs of the source on branchScope, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled and incomplete runs are left out (incomplete since 1.0.0-beta.10)."
+            "description": "The last 30 finished runs of the source on the branch, whatever the window, oldest first - one point per run, passed counting first-try passes, durationMs from its first shard's start to its last shard's finish. Cancelled and incomplete runs are left out (incomplete since 1.0.0-beta.10)."
           }
         },
         "required": [
           "project",
           "window",
-          "branchScope",
-          "stableBranch",
+          "branch",
           "lastRun",
           "runsInWindow",
           "unfinishedRuns",
@@ -7272,9 +7251,6 @@
           "settings": {
             "type": "object",
             "properties": {
-              "stableBranch": {
-                "type": "string"
-              },
               "retentionDays": {
                 "type": "integer"
               },
@@ -7309,7 +7285,6 @@
               }
             },
             "required": [
-              "stableBranch",
               "retentionDays",
               "slack",
               "github"
