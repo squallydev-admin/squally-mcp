@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0 — behaviour change: follows read API 1.0.0-beta.18; source defaults to all
+
+The read API 1.0.0-beta.18 counts CI and local runs when `source` is left
+out; it counted CI runs only. `squally-get-test-metrics`,
+`squally-list-tests` and `squally-list-errors` follow it. A call that sends
+`source` gets what it got before - send `source=ci` for CI runs only. No
+type or enum changed, and 0.8.0 works against beta.17 as well (there the
+default is still `ci`, and `population` names what was counted).
+
+### Changed
+
+- `src/openapi/v1.json` re-vendored from the read API 1.0.0-beta.18: the
+  `source` parameter's default is `all` on the overview, test and error
+  operations.
+- The descriptions of `squally-get-test-metrics`, `squally-list-tests` and
+  `squally-list-errors`, and the server instructions: CI and local runs
+  count by default; `source=ci` or `source=local` narrows to one of them.
+
 ## 0.7.0 — breaking: follows read API 1.0.0-beta.17; no stable branch
 
 The read API 1.0.0-beta.17 drops the project's stable branch. 0.6.1's

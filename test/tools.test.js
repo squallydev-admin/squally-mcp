@@ -164,11 +164,13 @@ test("the metric tools define their numbers in plain words and state there is no
   // 0.3.0, API 1.0.0-beta.6: one run per CI run, counted once its shards have
   // all finished; a mass failure is judged on the run as a whole.
   // API 1.0.0-beta.10: "finished" includes a run the run timeout ended.
-  assert.match(metrics, /finished CI runs of the period - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole/);
+  assert.match(metrics, /finished runs of the period, CI and local - a sharded run counts once, by its first shard's start - without runs that were a mass failure as a whole/);
   // 0.4.0, API 1.0.0-beta.8: local runs count when asked for - "local runs
   // never count" was true until then, and an agent reading it would not try.
-  assert.match(metrics, /source=local or source=all counts local runs or both instead \(population names which\)/);
-  assert.match(INSTRUCTIONS, /pass source=local or source=all to count local runs or both/);
+  // 0.8.0, API 1.0.0-beta.18: both count by default; source narrows to one.
+  assert.match(metrics, /source=ci or source=local counts only those instead \(population names which\)/);
+  assert.match(INSTRUCTIONS, /pass source=ci or source=local to count only one of them/);
+  assert.doesNotMatch(metrics, /CI runs of the period/);
   assert.match(metrics, /each with the run id squally-find-run gives/);
   // 0.4.0, API 1.0.0-beta.7: the newest run is the one an agent asks about,
   // and it is not in the numbers until its last shard has finished.
@@ -541,9 +543,17 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // descriptions of squally-find-run's rows and squally-get-run's run say a
   // run waiting for a shard is running until it is overdue. No text of ours
   // changed.
+  //
+  // 0.8.0: 46242689febdd1fb -> 74eb3266efc6cb28. Re-vendored from API
+  // 1.0.0-beta.18 (squally-app, source defaults to all, 23.10.2026). No type
+  // or enum changed. The re-vendor alone gives 9e6a363068d7a31e (measured):
+  // the source parameter's default moves from ci to all on the six overview,
+  // test and error operations, and their descriptions say so. The rest is the texts:
+  // squally-get-test-metrics, squally-list-tests and squally-list-errors
+  // count CI and local runs unless source=ci or source=local narrows them.
   assert.equal(
     digest(toolList()),
-    "46242689febdd1fb",
+    "74eb3266efc6cb28",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -555,9 +565,9 @@ test("the server identifies as squally and carries the instructions", () => {
     INSTRUCTIONS,
     "Start with squally-list-projects; every other tool needs a projectId from it. " +
       "For one test, use squally-get-test-metrics, not squally-list-tests. " +
-      "Test metrics count the finished CI runs of the period - a sharded run counts once - " +
-      "without runs that were a mass failure as a whole; pass source=local or source=all " +
-      "to count local runs or both. A run still in progress counts once all its shards have " +
+      "Test metrics count the finished runs of the period, CI and local - a sharded run counts once - " +
+      "without runs that were a mass failure as a whole; pass source=ci or source=local " +
+      "to count only one of them. A run still in progress counts once all its shards have " +
       "finished, or once the run timeout has passed, with the results its shards reported - " +
       "also when a shard was stopped by the monthly result limit. " +
       "stability = runs that passed on the " +

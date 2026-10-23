@@ -142,7 +142,7 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
 | `squally-debug-failure` | Every attempt of one test in one run: error, stack, full-context prompt. | cheap |
 | `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
-| `squally-list-tests` | Every test with a CI run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
+| `squally-list-tests` | Every test with a run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
 | `squally-list-errors` | Error signatures in a period: what keeps failing, grouped, and how its runs ended. | cheap |
 
 For a single test use `squally-get-test-metrics`, not `squally-list-tests` —
@@ -169,15 +169,15 @@ has one linked repository).
 
 ### What the numbers mean
 
-The two test tools count **finished CI runs** in the period (7, 14, 30 or 90
+The two test tools count **finished runs, CI and local,** in the period (7, 14, 30 or 90
 days; 30 by default), on every branch unless you name one. A run finishes when
 all its shards have - or, once the run timeout has passed, with the results its
 shards reported, like a cancelled run; a shard stopped by the monthly result
 limit counts like one that timed out. A sharded run counts once, placed in the period
 by its first shard's start; a run that was a mass failure as a whole is left
-out. Local runs count only
-when you ask for them: `source` is `ci` (the default), `local` or `all`, and
-the response's `population` names which runs it counted. Per test:
+out. `source` is `all` (the default since read API 1.0.0-beta.18; `ci`
+before), `ci` or `local` - send `source=ci` for CI runs only - and the
+response's `population` names which runs it counted. Per test:
 
 - **stability** — runs that passed on the first try ÷ runs;
 - **flakyRate** — runs that passed only after a retry ÷ runs;
