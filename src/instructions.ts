@@ -23,6 +23,9 @@
 //
 // THE SOURCE SINCE 0.4.0 (API 1.0.0-beta.8): CI runs by default; local runs
 // count only when the agent asks for them - they were never counted before.
+// ALL BY DEFAULT SINCE 0.8.0 (API 1.0.0-beta.18, 23.10.2026): CI and local
+// runs both count unless the agent sends source=ci or source=local - the
+// API's default moved, and the sentence follows it.
 //
 // THE RUN TIMEOUT (API 1.0.0-beta.10, since 0.5.0): a run whose shard died or
 // never started counts once the run timeout has passed, with the shards that
@@ -50,9 +53,9 @@
 export const INSTRUCTIONS = [
   "Start with squally-list-projects; every other tool needs a projectId from it.",
   "For one test, use squally-get-test-metrics, not squally-list-tests.",
-  "Test metrics count the finished CI runs of the period - a sharded run counts once -",
-  "without runs that were a mass failure as a whole; pass source=local or source=all",
-  "to count local runs or both. A run still in progress counts once all its shards have",
+  "Test metrics count the finished runs of the period, CI and local - a sharded run counts once -",
+  "without runs that were a mass failure as a whole; pass source=ci or source=local",
+  "to count only one of them. A run still in progress counts once all its shards have",
   "finished, or once the run timeout has passed, with the results its shards reported -",
   "also when a shard was stopped by the monthly result limit.",
   "stability = runs that passed on the",
