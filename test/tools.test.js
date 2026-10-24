@@ -551,9 +551,17 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // test and error operations, and their descriptions say so. The rest is the texts:
   // squally-get-test-metrics, squally-list-tests and squally-list-errors
   // count CI and local runs unless source=ci or source=local narrows them.
+  //
+  // 0.8.1: 74eb3266efc6cb28 -> 949481abc910dc0c. Re-vendored
+  // from squally-app aca015d (24.10.2026), still API 1.0.0-beta.18. Two
+  // document changes, no input schema touched: output schemas write a
+  // nullable field as "type": [<type>, "null"] instead of an anyOf of the two
+  // (zod 4.6 - the same schema in OpenAPI 3.1, changelog "document only"), and
+  // the 23.10.2026 additive entry the last vendoring missed - the
+  // organization_deleted 403 code, now in x-error-codes and the error texts.
   assert.equal(
     digest(toolList()),
-    "74eb3266efc6cb28",
+    "949481abc910dc0c",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -611,7 +619,12 @@ test("0.6.0: the run tools carry settled, jobKey, attempt, rerunOf and ciRunUrl"
   const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
   const listed = byName["squally-find-run"].outputSchema.properties.runs.items;
   const run = byName["squally-get-run"].outputSchema.properties.run;
-  const nullable = (property, type) => property.anyOf?.some((s) => s.type === type) && property.anyOf.some((s) => s.type === "null");
+  // Either spelling of "this type or null": an anyOf of the two (before
+  // squally-app's zod 4.6, 24.10.2026) or a type array (since) - the same
+  // schema in OpenAPI 3.1.
+  const nullable = (property, type) =>
+    (Array.isArray(property.type) && property.type.includes(type) && property.type.includes("null")) ||
+    (property.anyOf?.some((s) => s.type === type) && property.anyOf.some((s) => s.type === "null"));
   for (const [name, schema] of [["squally-find-run", listed], ["squally-get-run", run]]) {
     for (const field of ["settled", "jobKey", "attempt", "rerunOf", "ciRunUrl"]) {
       assert.ok(schema.required.includes(field), `${name}: ${field} is required`);

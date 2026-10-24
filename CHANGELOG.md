@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.1 — security updates of dependencies; OpenAPI document refreshed
+
+No tool, input schema or behaviour changed. 0.8.1 still follows the read
+API 1.0.0-beta.18.
+
+### Security
+
+- `@modelcontextprotocol/sdk` 1.32.2 (was `^1.30.1`) and `zod` 4.6.7 (was
+  `^4.6.5`); the lower bounds are raised so a fresh install gets the fixed
+  versions. zod < 4.6.6 could exhaust memory on crafted input, and the
+  server validates every tool call's arguments with zod. The SDK's
+  advisories (OAuth client, experimental tasks, cross-origin redirects) and
+  those of its HTTP dependencies (body-parser, hono, ip-address, fast-uri)
+  sit in code the stdio server never loads; they are fixed all the same, so
+  `npm audit` stays clean where squally-mcp is installed.
+
+### Changed
+
+- `src/openapi/v1.json` re-vendored from the current read API document,
+  still 1.0.0-beta.18:
+  - Output schemas write a nullable field as `"type": [<type>, "null"]`
+    instead of an `anyOf` of the two (zod 4.6 output, the same schema in
+    OpenAPI 3.1; the API changelog lists it as document only).
+  - The `organization_deleted` 403 code, which the 0.8.0 vendoring missed,
+    is in `x-error-codes` and the error texts, so a call against a deleted
+    organization is explained instead of reported as an unknown code.
+
 ## 0.8.0 — behaviour change: follows read API 1.0.0-beta.18; source defaults to all
 
 The read API 1.0.0-beta.18 counts CI and local runs when `source` is left
