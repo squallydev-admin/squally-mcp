@@ -56,7 +56,7 @@
     {
       "code": "invalid_period",
       "status": 400,
-      "when": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+      "when": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
       "action": "Use days=7, 14, 30 or 90, within the plan's retention; do not retry.",
       "hasBody": true
     },
@@ -628,7 +628,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -2187,7 +2187,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -2613,7 +2613,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -2994,7 +2994,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -3322,6 +3322,8 @@
                       "runCount": 7,
                       "failedCount": 5,
                       "flakyCount": 2,
+                      "failedRunCount": 5,
+                      "flakyRunCount": 2,
                       "massFailureRunCount": 0,
                       "firstSeen": "2026-09-02T11:20:44.000Z",
                       "lastSeen": "2026-09-24T07:34:05.000Z"
@@ -3369,7 +3371,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -3666,6 +3668,8 @@
                     "runCount": 7,
                     "failedCount": 5,
                     "flakyCount": 2,
+                    "failedRunCount": 5,
+                    "flakyRunCount": 2,
                     "massFailureRunCount": 0,
                     "firstSeen": "2026-09-02T11:20:44.000Z",
                     "lastSeen": "2026-09-24T07:34:05.000Z"
@@ -3735,7 +3739,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -4129,7 +4133,7 @@
                   "invalid_period": {
                     "summary": "invalid_period",
                     "value": {
-                      "error": "days=90 is beyond this plan's 60-day retention. Use 60 or less.",
+                      "error": "days=90 is beyond this plan's 60-day retention. Use one of 7, 14, 30.",
                       "code": "invalid_period"
                     }
                   }
@@ -4710,7 +4714,7 @@
                     "incomplete",
                     "running"
                   ],
-                  "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its latest shard's start; running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
+                  "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel, or Squally marked the whole run cancelled; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its shards' last activity (a begin, a batch of results or a completion; their latest start until 2026-10-27); running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
                 },
                 "cancellation": {
                   "anyOf": [
@@ -4727,7 +4731,7 @@
                         "at": {
                           "type": "string",
                           "format": "date-time",
-                          "description": "When the run was cancelled. For a sharded run, the first shard to record it."
+                          "description": "When the run was cancelled. For a sharded run, the first shard to record it - or, when the cancel marked the whole run before any shard recorded one (shards that had not begun, since 2026-10-22), when it was marked."
                         },
                         "byUserId": {
                           "description": "The user who cancelled the run, when source is \"user\"; null otherwise.",
@@ -4755,7 +4759,7 @@
                 },
                 "settled": {
                   "type": "boolean",
-                  "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+                  "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit, counted from its shards' last activity - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
                 },
                 "jobKey": {
                   "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15.",
@@ -5033,7 +5037,7 @@
                   "incomplete",
                   "running"
                 ],
-                "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its latest shard's start; running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
+                "description": "How the run ended, the dashboard's own word: cancelled - the run was cancelled (for a sharded run, any shard recorded a cancel, or Squally marked the whole run cancelled; cancellation says how and when); incomplete - a shard timed out, was stopped by the monthly result limit, or never reported by the time the run is overdue by the project's run timeout, counted from its shards' last activity (a begin, a batch of results or a completion; their latest start until 2026-10-27); running - a shard is still running, or the run still waits for a shard within that time; failed - every shard finished and a test failed; passed - every shard finished and none failed. In that order: the first that applies. Since 1.0.0-beta.14 - before it, a cancelled run reported the outcome beneath the cancel and a cancelled boolean. Waiting for a shard is running since 2026-10-20 - before it, incomplete."
               },
               "cancellation": {
                 "anyOf": [
@@ -5050,7 +5054,7 @@
                       "at": {
                         "type": "string",
                         "format": "date-time",
-                        "description": "When the run was cancelled. For a sharded run, the first shard to record it."
+                        "description": "When the run was cancelled. For a sharded run, the first shard to record it - or, when the cancel marked the whole run before any shard recorded one (shards that had not begun, since 2026-10-22), when it was marked."
                       },
                       "byUserId": {
                         "description": "The user who cancelled the run, when source is \"user\"; null otherwise.",
@@ -5078,7 +5082,7 @@
               },
               "settled": {
                 "type": "boolean",
-                "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
+                "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit, counted from its shards' last activity - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
               },
               "jobKey": {
                 "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15.",
@@ -5578,7 +5582,7 @@
                   }
                 },
                 "copyPrompt": {
-                  "description": "A prompt for an assistant that has the repository open, byte-identical to the text that Copy the full context puts on the clipboard (Debug with AI on the attempt page). null for an attempt without a real failure (a pass, a test.fail() marker, no error text).",
+                  "description": "A prompt for an assistant that has the repository open, byte-identical to the text that Copy prompt copies under Fix in your agent, Without MCP, on the attempt page. null for an attempt without a real failure (a pass, a test.fail() marker, no error text).",
                   "type": [
                     "string",
                     "null"
@@ -6429,6 +6433,14 @@
                   "type": "integer",
                   "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
                 },
+                "failedRunCount": {
+                  "type": "integer",
+                  "description": "Of runCount, the runs in which at least one test the error hit ended failed - each run counted once, however many of its tests failed (since 1.0.0-beta.18, additive)."
+                },
+                "flakyRunCount": {
+                  "type": "integer",
+                  "description": "Of runCount, the runs in which no test the error hit ended failed and at least one ended flaky - passed after a retry. failedRunCount + flakyRunCount <= runCount (since 1.0.0-beta.18, additive)."
+                },
                 "massFailureRunCount": {
                   "type": "integer",
                   "description": "Of runCount, the runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed) - counted, and named here (since 1.0.0-beta.9)."
@@ -6456,6 +6468,8 @@
                 "runCount",
                 "failedCount",
                 "flakyCount",
+                "failedRunCount",
+                "flakyRunCount",
                 "massFailureRunCount",
                 "firstSeen",
                 "lastSeen"
@@ -6577,6 +6591,14 @@
                 "type": "integer",
                 "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
               },
+              "failedRunCount": {
+                "type": "integer",
+                "description": "Of runCount, the runs in which at least one test the error hit ended failed - each run counted once, however many of its tests failed (since 1.0.0-beta.18, additive)."
+              },
+              "flakyRunCount": {
+                "type": "integer",
+                "description": "Of runCount, the runs in which no test the error hit ended failed and at least one ended flaky - passed after a retry. failedRunCount + flakyRunCount <= runCount (since 1.0.0-beta.18, additive)."
+              },
               "massFailureRunCount": {
                 "type": "integer",
                 "description": "Of runCount, the runs that were a mass failure as a whole (at least 20 tests, over 80% of them failed) - counted, and named here (since 1.0.0-beta.9)."
@@ -6604,6 +6626,8 @@
               "runCount",
               "failedCount",
               "flakyCount",
+              "failedRunCount",
+              "flakyRunCount",
               "massFailureRunCount",
               "firstSeen",
               "lastSeen"

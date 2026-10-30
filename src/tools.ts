@@ -156,8 +156,10 @@ export const TOOLS: ToolDefinition[] = [
       "often and how recently each occurred. Answers 'is this failure one instance of something " +
       "that keeps happening' - a grouping no agent can compute from the repository alone. " +
       "Counts finished runs, CI and local, by default (source=ci or source=local for one of them), a sharded run " +
-      "once, mass-failure runs included; failedCount and flakyCount say how the runs ended " +
-      "for the tests the error hit.",
+      "once, mass-failure runs included. failedRunCount and flakyRunCount say how the runs " +
+      "ended: runs in which a test the error hit failed, and runs in which none failed and " +
+      "one passed only after a retry. failedCount and flakyCount count (run, test) pairs " +
+      "instead - a run in which the error failed three tests counts three times there.",
     answers: "Error signatures in a period: what keeps failing, grouped, and how its runs ended.",
     cost: "cheap",
   },
