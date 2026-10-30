@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.3 — a firewall challenge is not reported as a key problem
+
+No tool, schema or description changed; 0.8.3 still follows the read API
+1.0.0-beta.18.
+
+### Fixed
+
+- When Vercel's firewall in front of Squally stops a request itself - HTTP
+  403 with `x-vercel-mitigated: challenge` or `deny` - the tool result said
+  only "The Squally API answered HTTP 403.", which reads like a refused key.
+  It now says what happened and what to do: "Vercel's firewall in front of
+  Squally challenged this request (HTTP 403, x-vercel-mitigated: challenge).
+  This is not a key problem - the key was not checked. Wait a few minutes,
+  then retry once; do not retry in a loop. If it persists, tell the user."
+  Measured 30.10.2026: this server's Node fetch was challenged while curl
+  with the same key got through. The server still does not retry on its
+  own; the agent decides. The API's own 403s (`organization_deleted`,
+  `tier_too_low`) carry no such header and keep their sentence and action.
+
 ## 0.8.2 — run counts for errors; tool texts corrected
 
 0.8.2 follows the read API 1.0.0-beta.18 as served since 30.10.2026, which

@@ -281,6 +281,41 @@ test("a 429 has no body and gets the one fixed sentence", async () => {
   assert.match(result.content[0].text, /wait 60 seconds/);
 });
 
+test("0.8.3: a 403 from Vercel's firewall says it is not the key - wait, retry once, no loop", async () => {
+  // The answer measured on 30.10.2026, Vercel's own body included.
+  const challenge = { error: { code: "challenge", message: "This request requires a challenge to be completed." } };
+  const { fetcher } = stubFetch(jsonResponse(403, challenge, { "x-vercel-mitigated": "challenge", server: "Vercel" }));
+  const api = await callOperation(CONFIG, operationFor("listProjects"), {}, fetcher);
+  assert.equal(api.mitigated, "challenge");
+  const result = toolResult(api, ERROR_CODES, CONFIG.apiBase);
+  assert.equal(result.isError, true);
+  assert.equal(
+    result.content[0].text,
+    "Vercel's firewall in front of Squally challenged this request (HTTP 403, x-vercel-mitigated: challenge). " +
+      "This is not a key problem - the key was not checked. Wait a few minutes, then retry once; do not retry " +
+      "in a loop. If it persists, tell the user.",
+  );
+
+  const denied = stubFetch(new Response("", { status: 403, headers: { "x-vercel-mitigated": "deny" } }));
+  const deniedText = toolResult(
+    await callOperation(CONFIG, operationFor("listProjects"), {}, denied.fetcher),
+    ERROR_CODES,
+    CONFIG.apiBase,
+  ).content[0].text;
+  assert.match(deniedText, /^Vercel's firewall in front of Squally blocked this request \(HTTP 403, x-vercel-mitigated: deny\)\./);
+});
+
+test("0.8.3: the API's own 403 has no firewall header and keeps its sentence and action", async () => {
+  const { fetcher } = stubFetch(
+    jsonResponse(403, { error: "This organization was deleted.", code: "organization_deleted" }),
+  );
+  const api = await callOperation(CONFIG, operationFor("listProjects"), {}, fetcher);
+  assert.equal(api.mitigated, null);
+  const text = toolResult(api, ERROR_CODES, CONFIG.apiBase).content[0].text;
+  assert.match(text, /^This organization was deleted\.\nError code: organization_deleted\nWhat to do: /);
+  assert.doesNotMatch(text, /firewall/);
+});
+
 test("an error without a body still says something useful", async () => {
   const { fetcher } = stubFetch(new Response("", { status: 503 }));
   const api = await callOperation(CONFIG, operationFor("listProjects"), {}, fetcher);

@@ -18,6 +18,21 @@ import type { ErrorCode } from "./openapi.js";
 /** The one message for a rate limit, which arrives without a body. */
 export const RATE_LIMITED_TEXT = "Rate limited - wait 60 seconds, then retry.";
 
+/**
+ * Vercel's firewall stopped the request (0.8.3): 403 with
+ * `x-vercel-mitigated`. Until 0.8.2 this read "The Squally API answered HTTP
+ * 403." and nothing else - which sends an agent and its user after the key.
+ * One retry after a wait, not a loop: retrying into the challenge is what
+ * keeps it going.
+ */
+export function edgeMitigatedText(mitigated: "challenge" | "deny"): string {
+  return (
+    `Vercel's firewall in front of Squally ${mitigated === "deny" ? "blocked" : "challenged"} this request ` +
+    `(HTTP 403, x-vercel-mitigated: ${mitigated}). This is not a key problem - the key was not checked. ` +
+    "Wait a few minutes, then retry once; do not retry in a loop. If it persists, tell the user."
+  );
+}
+
 function text(value: string): CallToolResult["content"][number] {
   return { type: "text", text: value };
 }
@@ -79,6 +94,11 @@ export function failureResult(
 ): CallToolResult {
   if (failure.status === 429) {
     return { content: [text(RATE_LIMITED_TEXT)], isError: true };
+  }
+  // Before the API's own 403s (organization_deleted, tier_too_low): those
+  // come without the header and keep their sentence and action.
+  if (failure.status === 403 && failure.mitigated !== null) {
+    return { content: [text(edgeMitigatedText(failure.mitigated))], isError: true };
   }
 
   const known = failure.code ? errorCodes.get(failure.code) : undefined;
