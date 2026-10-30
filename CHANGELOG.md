@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.8.2 — run counts for errors; tool texts corrected
+
+0.8.2 follows the read API 1.0.0-beta.18 as served since 30.10.2026, which
+adds `failedRunCount` and `flakyRunCount` to every error. The output schema
+of `squally-list-errors` requires them, so 0.8.2 needs a server that sends
+them; app.squally.dev does.
+
+### Added
+
+- `failedRunCount` and `flakyRunCount` on each error of
+  `squally-list-errors`: the runs in which a test the error hit failed, and
+  the runs in which none failed and one passed only after a retry.
+
+### Fixed
+
+- The description of `squally-list-errors` said `failedCount` and
+  `flakyCount` say how the runs ended. They count (run, test) pairs - a run
+  in which the error failed three tests counts three times. The description
+  now points to `failedRunCount` and `flakyRunCount` for how the runs ended.
+- The description of `squally-get-run` and the server instructions did not
+  say that each test row is the test's final attempt. A test that passed
+  only after a retry reads as `passed` with `attempts` above 1, and the
+  errors of its failed attempts come only from `squally-debug-failure`.
+
+### Changed
+
+- `src/openapi/v1.json` re-vendored from the live document. Besides the two
+  fields: the descriptions of a run's `status`, `cancellation.at` and
+  `settled` name a cancel Squally recorded for the whole run and count the
+  run timeout from the shards' last activity; `copyPrompt` names Copy
+  prompt under Fix in your agent; the `invalid_period` examples read "Use
+  one of 7, 14, 30.".
+
 ## 0.8.1 — security updates of dependencies; OpenAPI document refreshed
 
 No tool, input schema or behaviour changed. 0.8.1 still follows the read

@@ -559,12 +559,55 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // (zod 4.6 - the same schema in OpenAPI 3.1, changelog "document only"), and
   // the 23.10.2026 additive entry the last vendoring missed - the
   // organization_deleted 403 code, now in x-error-codes and the error texts.
+  //
+  // 0.8.2 (first half): 949481abc910dc0c -> 84245ce9a882d44c. Text only, no
+  // re-vendor: squally-get-run's description says each row is the test's
+  // final attempt, so a test that passed after a retry is passed with
+  // attempts above 1 and its errors come from squally-debug-failure
+  // (squally-app #54).
+  //
+  // 0.8.2 (second half): 84245ce9a882d44c -> 3276fab953a15666. Re-vendored
+  // from the live document of 30.10.2026, still API 1.0.0-beta.18 (additive).
+  // squally-list-errors' errors gain failedRunCount and flakyRunCount
+  // (integer, required); the status, cancellation.at and settled
+  // descriptions of the two run tools name the whole-run cancel and the
+  // shards' last activity; copyPrompt names Copy prompt under Fix in your
+  // agent. The re-vendor alone gives 9e97d5f4bd93f485 (measured). The rest
+  // is squally-list-errors' description: the run counts say how the runs
+  // ended, failedCount and flakyCount are (run, test) pairs.
   assert.equal(
     digest(toolList()),
-    "949481abc910dc0c",
+    "3276fab953a15666",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
+});
+
+test("0.8.2: squally-get-run says a test that passed after a retry reads as passed", () => {
+  // squally-app #54: the row is the final attempt, so status alone hides it -
+  // attempts > 1 is the sign, and the earlier errors are only in
+  // squally-debug-failure. Pinned in both places a model reads it.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const run = byName["squally-get-run"].description;
+  assert.match(run, /Each test row is the test's final attempt: a test that passed only after a retry has status passed and attempts above 1/);
+  assert.match(run, /the errors of its failed attempts come only from squally-debug-failure/);
+  assert.match(INSTRUCTIONS, /squally-get-run reports each test's final attempt: one that passed only after a retry is passed with attempts above 1/);
+});
+
+test("0.8.2: squally-list-errors says how runs ended with the run counts, not the pairs", () => {
+  // Until 0.8.1 the text said failedCount and flakyCount "say how the runs
+  // ended" - they count (run, test) pairs, so a run that failed three tests
+  // counted three times. The run counts came with the API on 30.10.2026.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const errors = byName["squally-list-errors"].description;
+  assert.match(errors, /failedRunCount and flakyRunCount say how the runs ended/);
+  assert.match(errors, /failedCount and flakyCount count \(run, test\) pairs/);
+  assert.doesNotMatch(errors, /failedCount and flakyCount say how the runs ended/);
+  const row = byName["squally-list-errors"].outputSchema.properties.errors.items;
+  for (const field of ["failedRunCount", "flakyRunCount"]) {
+    assert.equal(row.properties[field].type, "integer", field);
+    assert.ok(row.required.includes(field), `${field} is required`);
+  }
 });
 
 test("the server identifies as squally and carries the instructions", () => {
@@ -585,6 +628,9 @@ test("the server identifies as squally and carries the instructions", () => {
       "error. A run's status is passed, failed, cancelled, incomplete or running; " +
       "a run that is not settled can still change. Each job of a CI run that sets a " +
       "job key is its own run (jobKey). " +
+      "squally-get-run reports each test's final attempt: one that passed only after a " +
+      "retry is passed with attempts above 1, and squally-debug-failure has the errors " +
+      "of its failed attempts. " +
       "Errors carry a code and an action; follow the action.",
   );
 });
