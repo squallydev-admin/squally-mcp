@@ -48,6 +48,12 @@
 // unsettled "incomplete" read as final, or two runs of one commit read as a
 // duplicate, is the mistake.
 //
+// THE FINAL ATTEMPT (0.8.2, text only, squally-app #54): squally-get-run's
+// rows are each test's final attempt, so a test that passed after a retry
+// reads as passed - attempts > 1 is the only sign, and its error is not in the
+// row. Said here because "which tests were flaky in this run" is the question
+// the run page's Fix prompt sends an agent with.
+//
 // Exported as `squally-mcp/instructions` (package.json), so it stays a plain
 // constant - test/exports.test.js imports it through the package name.
 export const INSTRUCTIONS = [
@@ -65,5 +71,8 @@ export const INSTRUCTIONS = [
   "error. A run's status is passed, failed, cancelled, incomplete or running;",
   "a run that is not settled can still change. Each job of a CI run that sets a",
   "job key is its own run (jobKey).",
+  "squally-get-run reports each test's final attempt: one that passed only after a",
+  "retry is passed with attempts above 1, and squally-debug-failure has the errors",
+  "of its failed attempts.",
   "Errors carry a code and an action; follow the action.",
 ].join(" ");

@@ -559,12 +559,29 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // (zod 4.6 - the same schema in OpenAPI 3.1, changelog "document only"), and
   // the 23.10.2026 additive entry the last vendoring missed - the
   // organization_deleted 403 code, now in x-error-codes and the error texts.
+  //
+  // Unreleased (0.8.2): 949481abc910dc0c -> 84245ce9a882d44c. Text only, no
+  // re-vendor: squally-get-run's description says each row is the test's
+  // final attempt, so a test that passed after a retry is passed with
+  // attempts above 1 and its errors come from squally-debug-failure
+  // (squally-app #54).
   assert.equal(
     digest(toolList()),
-    "949481abc910dc0c",
+    "84245ce9a882d44c",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
+});
+
+test("0.8.2: squally-get-run says a test that passed after a retry reads as passed", () => {
+  // squally-app #54: the row is the final attempt, so status alone hides it -
+  // attempts > 1 is the sign, and the earlier errors are only in
+  // squally-debug-failure. Pinned in both places a model reads it.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const run = byName["squally-get-run"].description;
+  assert.match(run, /Each test row is the test's final attempt: a test that passed only after a retry has status passed and attempts above 1/);
+  assert.match(run, /the errors of its failed attempts come only from squally-debug-failure/);
+  assert.match(INSTRUCTIONS, /squally-get-run reports each test's final attempt: one that passed only after a retry is passed with attempts above 1/);
 });
 
 test("the server identifies as squally and carries the instructions", () => {
@@ -585,6 +602,9 @@ test("the server identifies as squally and carries the instructions", () => {
       "error. A run's status is passed, failed, cancelled, incomplete or running; " +
       "a run that is not settled can still change. Each job of a CI run that sets a " +
       "job key is its own run (jobKey). " +
+      "squally-get-run reports each test's final attempt: one that passed only after a " +
+      "retry is passed with attempts above 1, and squally-debug-failure has the errors " +
+      "of its failed attempts. " +
       "Errors carry a code and an action; follow the action.",
   );
 });

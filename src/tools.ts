@@ -94,7 +94,9 @@ export const TOOLS: ToolDefinition[] = [
       "test is red in a run; the run list carries only the counters. Its status is cancelled " +
       "for a cancelled run (cancellation says how and when), and local says it ran without CI. " +
       "Like squally-find-run it carries settled, jobKey, attempt, rerunOf and ciRunUrl - for a " +
-      "re-run, rerunOf.id is the run it re-ran, to compare with.",
+      "re-run, rerunOf.id is the run it re-ran, to compare with. Each test row is the test's " +
+      "final attempt: a test that passed only after a retry has status passed and attempts " +
+      "above 1, and the errors of its failed attempts come only from squally-debug-failure.",
     answers: "One run with its per-test rows, across all shards. Which test is red.",
     cost: "cheap",
   },
