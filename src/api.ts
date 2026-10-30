@@ -27,7 +27,23 @@ export type ApiFailure = {
   message: string | null;
   /** The API's stable slug, when it sent a body. */
   code: string | null;
+  /**
+   * `x-vercel-mitigated`, when Vercel's firewall in front of the API stopped
+   * the request itself (0.8.3): "challenge" or "deny", otherwise null.
+   */
+  mitigated: "challenge" | "deny" | null;
 };
+
+/**
+ * Vercel's firewall answering instead of the API (0.8.3). Measured 30.10.2026:
+ * this server's Node fetch got 403 with `x-vercel-mitigated: challenge` and
+ * Vercel's own `{"error":{"code":"challenge"}}` while curl with the same key
+ * got 200 - a temporary mitigation for one machine, not a refusal of the key.
+ */
+function edgeMitigation(headers: Headers): "challenge" | "deny" | null {
+  const value = (headers.get("x-vercel-mitigated") ?? "").trim().toLowerCase();
+  return value === "challenge" || value === "deny" ? value : null;
+}
 
 /** The request never reached the API, or the answer was not JSON. */
 export type ApiUnreachable = {
@@ -169,5 +185,5 @@ export async function callOperation(
     // Left null; the caller has a sentence for every status either way.
   }
 
-  return { kind: "failure", status: response.status, message, code };
+  return { kind: "failure", status: response.status, message, code, mitigated: edgeMitigation(response.headers) };
 }
