@@ -934,6 +934,13 @@
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
+                      },
+                      "annotations": [
+                        "issue"
+                      ],
+                      "location": {
+                        "line": 41,
+                        "column": 5
                       }
                     },
                     {
@@ -950,6 +957,11 @@
                       "shard": {
                         "index": 2,
                         "runId": "e4a9d3f0-2b6c-4178-a5d1-9f0e3c7b8a26"
+                      },
+                      "annotations": [],
+                      "location": {
+                        "line": 18,
+                        "column": 3
                       }
                     }
                   ]
@@ -1253,7 +1265,22 @@
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
-                      }
+                      },
+                      "annotations": [
+                        {
+                          "type": "issue",
+                          "description": "https://github.com/example-shop/storefront/issues/412",
+                          "location": "tests/checkout.spec.ts:41:5"
+                        }
+                      ],
+                      "annotationsOmitted": 0,
+                      "location": {
+                        "line": 41,
+                        "column": 5
+                      },
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "startedAt": "2026-10-30T09:14:07.412Z"
                     },
                     {
                       "retry": 1,
@@ -1268,7 +1295,22 @@
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
-                      }
+                      },
+                      "annotations": [
+                        {
+                          "type": "issue",
+                          "description": "https://github.com/example-shop/storefront/issues/412",
+                          "location": "tests/checkout.spec.ts:41:5"
+                        }
+                      ],
+                      "annotationsOmitted": 0,
+                      "location": {
+                        "line": 41,
+                        "column": 5
+                      },
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "startedAt": "2026-10-30T09:14:14.180Z"
                     }
                   ]
                 }
@@ -5378,6 +5420,43 @@
                     }
                   ],
                   "description": "The shard the test's final attempt ran in; null for an unsharded run. One row per test since 1.0.0-beta.12 - a test reported from two shards was one row per shard before."
+                },
+                "annotations": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The final attempt's annotation types (Playwright's test.info().annotations), in the order they were added - types only; descriptions are on the attempts endpoint. Empty when there are none, and for a result from a reporter before 0.19.0."
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "line": {
+                          "type": "integer"
+                        },
+                        "column": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "line",
+                        "column"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Where the test is declared in its file (Playwright's TestCase.location) - the file is filePath. null for a result from a reporter before 0.19.0."
                 }
               },
               "required": [
@@ -5391,7 +5470,9 @@
                 "browserName",
                 "timedOut",
                 "timeoutMs",
-                "shard"
+                "shard",
+                "annotations",
+                "location"
               ]
             }
           }
@@ -5617,6 +5698,105 @@
                     }
                   ],
                   "description": "The shard this attempt ran in; null for an unsharded run."
+                },
+                "annotations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "description": "As the test wrote it, with secrets masked the way error text is; at most 1000 characters.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "location": {
+                        "description": "Where the annotation was added, file:line[:column]; null when Playwright did not say.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "description",
+                      "location"
+                    ]
+                  },
+                  "description": "This attempt's annotations (Playwright's test.info().annotations), in the order they were added - at most 20. Empty when there are none, and for a result from a reporter before 0.19.0."
+                },
+                "annotationsOmitted": {
+                  "type": "integer",
+                  "description": "How many annotations past the 20 the reporter did not send."
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "line": {
+                          "type": "integer"
+                        },
+                        "column": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "line",
+                        "column"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Where the test is declared in its file (Playwright's TestCase.location) - the file is filePath. null for a result from a reporter before 0.19.0."
+                },
+                "workerIndex": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The Playwright worker that ran this attempt (workerIndex). null for a result from a reporter before 0.19.0."
+                },
+                "parallelIndex": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The worker's slot, 0 to workers - 1 (parallelIndex); a restarted worker keeps it. null for a result from a reporter before 0.19.0."
+                },
+                "startedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When this attempt started. null for a result from a reporter before 0.19.0, and when the runner's clock put it more than a day before the run or in the future."
                 }
               },
               "required": [
@@ -5629,7 +5809,13 @@
                 "browserName",
                 "errors",
                 "copyPrompt",
-                "shard"
+                "shard",
+                "annotations",
+                "annotationsOmitted",
+                "location",
+                "workerIndex",
+                "parallelIndex",
+                "startedAt"
               ]
             }
           }

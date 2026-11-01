@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.4 — annotations, the test's line, worker and start time
+
+0.8.4 follows the read API 1.0.0-beta.18 as served since 01.11.2026, which
+adds a test's annotations, its line, and each attempt's worker and start
+time. The output schemas of `squally-debug-failure` and `squally-get-run`
+require the new fields, so 0.8.4 needs a server that sends them;
+app.squally.dev does.
+
+### Added
+
+- `squally-debug-failure`: every attempt carries `annotations` (Playwright's
+  `test.info().annotations` - type, description with secrets masked, and
+  where it was added; at most 20), `annotationsOmitted`, `location` (the
+  test's line and column), `workerIndex`, `parallelIndex` and `startedAt`.
+  Its description names them: an issue link or a skip/fixme reason is often
+  the quickest answer to "why".
+- `squally-get-run`: every test row carries `annotations` (the final
+  attempt's types) and `location`.
+- Results reported by squally-reporter before 0.19.0 have no annotations and
+  `null` for the other fields.
+
 ## 0.8.3 — a firewall challenge is not reported as a key problem
 
 No tool, schema or description changed; 0.8.3 still follows the read API

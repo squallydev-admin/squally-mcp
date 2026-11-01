@@ -575,9 +575,17 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // agent. The re-vendor alone gives 9e97d5f4bd93f485 (measured). The rest
   // is squally-list-errors' description: the run counts say how the runs
   // ended, failedCount and flakyCount are (run, test) pairs.
+  //
+  // 0.8.4: 3276fab953a15666 -> 11f751428cbc1358. Re-vendored from the live
+  // document of 01.11.2026, still API 1.0.0-beta.18 (additive, squally-app
+  // annotations A3). squally-debug-failure's attempts gain annotations,
+  // annotationsOmitted, location, workerIndex, parallelIndex and startedAt;
+  // squally-get-run's test rows gain annotations (types) and location. The
+  // re-vendor alone gives 159f2bad3505fbf4 (measured). The rest is one clause
+  // in squally-debug-failure's description naming them.
   assert.equal(
     digest(toolList()),
-    "3276fab953a15666",
+    "11f751428cbc1358",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

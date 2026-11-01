@@ -107,7 +107,8 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "Every attempt of one test in one run, oldest first, each with the error, the stack and " +
       "the full-context prompt (the same text Copy the full context puts on the clipboard in " +
-      "Squally's Debug with AI panel). This is the " +
+      "Squally's Debug with AI panel), and the test's annotations (an issue link, a skip or fixme " +
+      "reason), its line, worker and start time. This is the " +
       "tool for 'why did this test fail'. If the test name is ambiguous, pass filePath.",
     answers: "Every attempt of one test in one run: error, stack, full-context prompt.",
     cost: "cheap",
