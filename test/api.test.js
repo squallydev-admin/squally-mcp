@@ -121,7 +121,7 @@ test("the tests list passes every argument through unchanged, in document order"
     sort: "flakyRate",
     projectId: "p1",
     days: 30,
-    browser: "chromium",
+    project: ["chromium", "firefox"],
     branch: "feature/a b",
     search: "check out",
     page: 2,
@@ -129,8 +129,18 @@ test("the tests list passes every argument through unchanged, in document order"
   assert.equal(
     url,
     "https://app.squally.dev/api/v1/projects/p1/tests" +
-      "?days=30&search=check+out&branch=feature%2Fa+b&browser=chromium&sort=flakyRate&page=2&perPage=100",
+      "?days=30&search=check+out&branch=feature%2Fa+b&project=chromium&project=firefox&sort=flakyRate&page=2&perPage=100",
   );
+});
+
+test("0.9.0: a list argument is the parameter repeated; an empty list sends nothing", () => {
+  // API 1.0.0-beta.19: ?project=a&project=b. One value is one repetition, and
+  // [] means "every project", like an absent argument - never ?project= empty,
+  // which the API refuses.
+  const one = buildUrl(CONFIG.apiBase, operationFor("listTests"), { projectId: "p1", project: ["web kit"] });
+  assert.equal(one, "https://app.squally.dev/api/v1/projects/p1/tests?project=web+kit");
+  const none = buildUrl(CONFIG.apiBase, operationFor("listTests"), { projectId: "p1", project: [] });
+  assert.equal(none, "https://app.squally.dev/api/v1/projects/p1/tests");
 });
 
 test("the request carries the bearer key, the user agent and accepts JSON", async () => {

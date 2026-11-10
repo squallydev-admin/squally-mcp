@@ -56,12 +56,14 @@ const EXPECTED_PARAMS = {
   "squally-get-test-metrics": [
     "getTestMetrics",
     ["projectId", "testName"],
-    ["filePath", "days", "branch", "source"],
+    // project since 0.9.0 (API 1.0.0-beta.19): one Playwright project's variant.
+    ["filePath", "project", "days", "branch", "source"],
   ],
   "squally-list-tests": [
     "listTests",
     ["projectId"],
-    ["days", "search", "branch", "source", "browser", "sort", "page", "perPage"],
+    // browser became project, a list, in 0.9.0 (API 1.0.0-beta.19).
+    ["days", "search", "branch", "source", "project", "sort", "page", "perPage"],
   ],
   "squally-list-errors": ["listErrors", ["projectId"], ["days", "source", "page"]],
 };
@@ -86,9 +88,10 @@ const EXPECTED_OUTPUT_KEYS = {
     "since",
     "until",
     "branch",
+    "projectFilter",
     "testName",
     "filePath",
-    "browser",
+    "projects",
     "runs",
     "stableRuns",
     "flakyRuns",
@@ -97,9 +100,11 @@ const EXPECTED_OUTPUT_KEYS = {
     "flakyRate",
     "failureRate",
     "timeLostMs",
+    "medianDurationMs",
     "recentResults",
     "branches",
     "topBranch",
+    "variants",
   ],
   "squally-list-tests": [
     "project",
@@ -108,7 +113,7 @@ const EXPECTED_OUTPUT_KEYS = {
     "since",
     "until",
     "branch",
-    "browser",
+    "projectFilter",
     "sort",
     "page",
     "perPage",
@@ -202,8 +207,12 @@ test("the metric tools define their numbers in plain words and state there is no
 test("no tool and no instruction speaks of a flaky, broken or healthy status any more", () => {
   // The words that named the engine's verdicts. "flaky" survives only as the
   // metric's name (flakyRate, "flaky rate") - never as something a test IS.
+  // 0.9.0: and in the one instruction sentence that says it is no run status
+  // either - removed before matching, so the word stays banned everywhere else.
   const status = /\bbroken\b|\bhealthy\b|flakiness|verdict engine|engine pass|\bflaky\b(?!\s*rate)/i;
-  for (const text of [...toolList().map((t) => t.description), INSTRUCTIONS]) {
+  const NOT_A_STATUS = "Flaky is a count, not a run status: a run's counts say how many tests passed only after a retry, and its status never says flaky.";
+  assert.ok(INSTRUCTIONS.includes(NOT_A_STATUS), "the exempted sentence is in the instructions");
+  for (const text of [...toolList().map((t) => t.description), INSTRUCTIONS.replace(NOT_A_STATUS, "")]) {
     assert.doesNotMatch(text, status, text);
   }
   for (const tool of TOOLS) {
@@ -281,10 +290,15 @@ test("enums, defaults and bounds survive from the document into the input schema
   assert.equal(tests.perPage.minimum, 1);
   assert.equal(tests.perPage.maximum, 100);
   assert.equal(tests.perPage.default, 50);
-  for (const text of ["search", "branch", "browser"]) {
+  for (const text of ["search", "branch"]) {
     assert.equal(tests[text].minLength, 1, text);
     assert.equal(tests[text].maxLength, 200, text);
   }
+  // 0.9.0: project is a list of names, each bounded like a text parameter.
+  assert.equal(tests.project.type, "array");
+  assert.equal(tests.project.items.type, "string");
+  assert.equal(tests.project.items.minLength, 1);
+  assert.equal(tests.project.items.maxLength, 200);
 
   const metrics = byName["squally-get-test-metrics"].inputSchema.properties;
   assert.deepEqual(metrics.days.enum, [7, 14, 30, 90]);
@@ -576,6 +590,22 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // is squally-list-errors' description: the run counts say how the runs
   // ended, failedCount and flakyCount are (run, test) pairs.
   //
+  // 0.9.0: 11f751428cbc1358 -> 6feb6b984fca113f. Re-vendored from squally-app
+  // claude/read-api-per-test (301e6f9, 10.11.2026; re-vendored from e35e212,
+  // whose corrected 200 examples are not part of the tool list - the digest
+  // stayed, measured), API 1.0.0-beta.19
+  // (Breaking: per test across Playwright projects). Input: squally-list-tests'
+  // browser (string) is project (string[]), squally-get-test-metrics takes
+  // project. Output: list-tests and get-test-metrics lose browser and gain
+  // projectFilter, projects, medianDurationMs and variants; list-errors' errors
+  // gain projects. The re-vendor also brings the 429 texts of squally-app's
+  // own rate limit (Retry-After). The re-vendor alone gives 6fd032483b545b82
+  // (measured). The rest is ours: every tool's description says whether it
+  // counts per Playwright project variant (the run tools) or once across
+  // projects (metrics, tests, errors), testName says which name each tool
+  // takes (OPERATION_PARAMETER_DESCRIPTIONS), and project on squally-list-tests
+  // is described as a list.
+  //
   // 0.8.4: 3276fab953a15666 -> 11f751428cbc1358. Re-vendored from the live
   // document of 01.11.2026, still API 1.0.0-beta.18 (additive, squally-app
   // annotations A3). squally-debug-failure's attempts gain annotations,
@@ -585,7 +615,7 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // in squally-debug-failure's description naming them.
   assert.equal(
     digest(toolList()),
-    "11f751428cbc1358",
+    "6feb6b984fca113f",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
@@ -624,6 +654,14 @@ test("the server identifies as squally and carries the instructions", () => {
     INSTRUCTIONS,
     "Start with squally-list-projects; every other tool needs a projectId from it. " +
       "For one test, use squally-get-test-metrics, not squally-list-tests. " +
+      "A run counts like Playwright: squally-find-run, squally-get-run and squally-debug-failure " +
+      "have one result per test and Playwright project, its name with the project " +
+      '("chromium > cart.spec.ts > adds"). What is collected across runs - squally-list-tests, ' +
+      "squally-get-test-metrics, squally-list-errors - counts a test once across its Playwright " +
+      "projects, by its name without the project, and names the projects: a run failed for the " +
+      "test when it failed in any project, and passed only after a retry when it did so in some " +
+      "project and failed in none. Flaky is a count, not a run status: a run's counts say how many " +
+      "tests passed only after a retry, and its status never says flaky. " +
       "Test metrics count the finished runs of the period, CI and local - a sharded run counts once - " +
       "without runs that were a mass failure as a whole; pass source=ci or source=local " +
       "to count only one of them. A run still in progress counts once all its shards have " +
@@ -694,4 +732,69 @@ test("0.6.0: the run tools carry settled, jobKey, attempt, rerunOf and ciRunUrl"
   assert.match(byName["squally-find-run"].description, /its own run \(jobKey\)/);
   assert.match(byName["squally-get-run"].description, /rerunOf\.id is the run it re-ran/);
   assert.match(INSTRUCTIONS, /a run that is not settled can still change/);
+});
+
+test("0.9.0: the run tools say per Playwright project variant, the collecting tools once across projects", () => {
+  // API 1.0.0-beta.19 (squally-app, 10.11.2026). The two families name a test
+  // differently - with and without its project - so each says which it is.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  assert.match(byName["squally-find-run"].description, /per Playwright project variant, like Playwright/);
+  assert.match(byName["squally-get-run"].description, /one row per Playwright project variant, like Playwright/);
+  assert.match(byName["squally-debug-failure"].description, /one Playwright project variant, by the name squally-get-run lists, project included/);
+  assert.match(byName["squally-get-test-metrics"].description, /the test once across its Playwright projects/);
+  assert.match(byName["squally-get-test-metrics"].description, /A run counts as failed when the test failed in any project/);
+  assert.match(byName["squally-list-tests"].description, /one row per test across its Playwright projects/);
+  assert.match(byName["squally-list-errors"].description, /Each test counts once across its Playwright projects/);
+  assert.match(INSTRUCTIONS, /A run counts like Playwright/);
+  assert.match(INSTRUCTIONS, /counts a test once across its Playwright projects/);
+  assert.match(INSTRUCTIONS, /Flaky is a count, not a run status/);
+});
+
+test("0.9.0: testName says which name each tool takes", () => {
+  // squally-debug-failure takes the variant's stored name (with its project),
+  // squally-get-test-metrics the test's name without it - one text for both
+  // would send the list's name to the attempts route, which 404s on it.
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const debug = byName["squally-debug-failure"].inputSchema.properties.testName.description;
+  const metrics = byName["squally-get-test-metrics"].inputSchema.properties.testName.description;
+  assert.match(debug, /exactly as squally-get-run lists it - with its Playwright project/);
+  assert.match(metrics, /WITHOUT its Playwright project, as squally-list-tests lists it/);
+  assert.match(metrics, /A stored name with its project .* still works and counts that project's variant only/);
+  // The document's URL syntax for the list parameter is not the tool's.
+  const project = byName["squally-list-tests"].inputSchema.properties.project.description;
+  assert.doesNotMatch(project, /\?project=|repeat the parameter/);
+});
+
+test("0.9.0: project is a list on squally-list-tests; browser is gone and refused", () => {
+  const tests = operationFor("listTests");
+  assert.equal(validateArgs(tests, { projectId: "p", project: ["chromium", "firefox"] }).ok, true);
+  assert.equal(validateArgs(tests, { projectId: "p", project: [] }).ok, true);
+  const single = validateArgs(tests, { projectId: "p", project: "chromium" });
+  assert.equal(single.ok, false, "a bare string is not a list");
+  assert.equal(validateArgs(tests, { projectId: "p", project: [""] }).ok, false, "an empty name is refused here, not by the API");
+  const old = validateArgs(tests, { projectId: "p", browser: "chromium" });
+  assert.equal(old.ok, false, "browser is reported as invented, never forwarded");
+  assert.match(old.message, /browser/);
+  // squally-get-test-metrics: one project, a string.
+  assert.equal(validateArgs(operationFor("getTestMetrics"), { projectId: "p", testName: "t", project: "firefox" }).ok, true);
+});
+
+test("0.9.0: the collecting tools carry projects and variants in their output schemas", () => {
+  const byName = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const item = byName["squally-list-tests"].outputSchema.properties.items.items;
+  const one = byName["squally-get-test-metrics"].outputSchema;
+  for (const [name, schema] of [["squally-list-tests item", item], ["squally-get-test-metrics", one]]) {
+    assert.equal(schema.properties.browser, undefined, `${name}: browser is gone`);
+    for (const field of ["projects", "variants", "medianDurationMs"]) {
+      assert.ok(schema.required.includes(field), `${name}: ${field} is required`);
+    }
+    assert.deepEqual(
+      Object.keys(schema.properties.variants.items.properties),
+      ["testName", "project", "runs", "stableRuns", "flakyRuns", "failedRuns", "timeLostMs", "medianDurationMs"],
+      name,
+    );
+  }
+  const error = byName["squally-list-errors"].outputSchema.properties.errors.items;
+  assert.equal(error.properties.projects.type, "array");
+  assert.ok(error.required.includes("projects"));
 });

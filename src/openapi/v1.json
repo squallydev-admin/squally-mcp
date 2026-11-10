@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.18",
-    "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request carries an organization read key as `Authorization: Bearer sqly_ro_…`. A read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601).\n\n**Rate limit.** Currently 60 requests per 60 seconds per key, counted per `Authorization` header - a read key has its own budget, shared with nothing else. Over the limit the edge answers 429 without a JSON body.\n\n**Retries.** 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
+    "version": "1.0.0-beta.19",
+    "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request goes to `https://app.squally.dev/api/v1` plus the path and carries an organization read key as `Authorization: Bearer sqly_ro_…`. With the key in `SQUALLY_API_KEY` - the variable the MCP server reads too - the first request lists the organization's projects:\n```sh\ncurl -H \"Authorization: Bearer $SQUALLY_API_KEY\" https://app.squally.dev/api/v1/projects\n```\nA read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601). Once it has passed, every request with the key is answered 401 `key_expired` (\"This read key expired on <date>. Create a new one in Organization › Read keys.\"); an expired key is never extended. To rotate without a gap: create a new key, switch your callers to it, then revoke the old one - an organization may hold several active keys, and each works until it expires or is revoked.\n\n**Rate limit.** Currently 60 requests per 60 seconds per key - a read key has its own budget, shared with nothing else. Over the limit the API answers 429 with `Retry-After: 60` and the usual error body, `{\"error\": \"Too many requests with this read key. Wait 60 seconds, then retry.\", \"code\": \"rate_limited\"}`. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no `Retry-After`: wait 60 seconds just the same.\n\n**Counts.** A run's `total`, `passed`, `failed`, `flaky` and `skipped` count tests, each test once over all the run's shards by its final attempt: `passed` on the first try, `flaky` after a retry, `failed` when the final attempt failed; `total` = `passed` + `failed` + `skipped` + `flaky`. Figures over a period - a test's runs, an error's occurrences - count finished runs of the `source` parameter's kind, as each field's description says.\n\n**Playwright projects.** A run counts like Playwright: one row and one count per project's variant of a test - the run routes. Anything collected across runs counts a test ONCE across its Playwright projects and names them - `/tests`, a test's metrics and history, `/errors`, `/overview`: a run failed for the test when it failed in any project, flaky when it passed only after a retry in some project and failed in none. Since 1.0.0-beta.19; each project's variant was its own test before.\n\n**Run numbers.** `runNumber` is the run's number in its project, the #12 the app shows: counted up from 1 per project, one number for all shards of a run, never given twice. Runs removed by the plan's retention leave gaps. The run routes take the run's `id`, not its number.\n\n**Paging.** `/projects` and `/projects/{projectId}/branches` answer with every item at once, no paging. `/runs` pages with a cursor (`cursor`, `direction`, `perPage`); `/tests` and `/errors` page by number (`page`, 1-based - a page past the end answers the last page - and `perPage`).\n\n**Retries.** 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`. The /tests/{testName} routes take a test's name without its project, as /tests lists it; a run's attempts route takes the name the run lists, with its project.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
     {
@@ -141,8 +141,8 @@
       "code": "rate_limited",
       "status": 429,
       "when": "More than 60 requests within 60 seconds with one read key.",
-      "action": "Wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header.",
-      "hasBody": false
+      "action": "Wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows.",
+      "hasBody": true
     },
     {
       "code": "internal_error",
@@ -305,7 +305,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -785,7 +822,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -1126,7 +1200,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -1261,7 +1372,7 @@
                           }
                         }
                       ],
-                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nBrowser: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed - a flaky run.\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 30 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
+                      "copyPrompt": "You have the repository open. Find the test below, explain the failure and propose a fix.\n\nFailing test: chromium > checkout.spec.ts > Checkout > applies a coupon code\nFile: tests/checkout.spec.ts\nProject: chromium\nRun branch: main\nAttempt: first try\nOutcome: a later retry of this test passed - a flaky run.\n\nError message:\nError: expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('order-total')\nExpected: \"€ 45.00\"\nReceived: \"€ 50.00\"\nTimeout: 5000ms\nStack (top frames):\nat /home/runner/work/storefront-web/tests/checkout.spec.ts:48:52\nAttempt duration: 6210 ms\nFailure category: Assertion\nLast 30 days on CI: flaky rate 50% (4/8), failure rate 0% (0/8)",
                       "shard": {
                         "index": 1,
                         "runId": "b1e0c6d2-7a43-4f19-8d5e-0c3a9e6f2b71"
@@ -1518,7 +1629,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -1754,7 +1902,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -1799,7 +1984,7 @@
       "get": {
         "operationId": "listTests",
         "summary": "List tests",
-        "description": "Every test with a run of the source (all by default) in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Counts finished runs of the source - all by default - without mass-failure runs, on every branch unless branch names one (see population). Moderate: aggregate queries over the period's results of the source, paged in the database; use the metrics route for one test.",
+        "description": "Every test with a run of the source (all by default) in the period and its metrics - stability, flaky rate, failure rate, runs, time lost, its median duration, its last 20 runs, the branches it ran on and where it fails most - ranked by the chosen sort. Each test once across its Playwright projects, its projects named and each project's own numbers in variants (since 1.0.0-beta.19; one item per project before). Counts finished runs of the source - all by default - without mass-failure runs, on every branch unless branch names one (see population). Moderate: aggregate queries over the period's results of the source, paged in the database; use the metrics route for one test.",
         "tags": [
           "Tests"
         ],
@@ -1867,14 +2052,17 @@
             }
           },
           {
-            "name": "browser",
+            "name": "project",
             "in": "query",
             "required": false,
-            "description": "Only tests of this Playwright project - the items' browser field, exactly (e.g. chromium). Every test when absent.",
+            "description": "Only these Playwright projects, exactly (e.g. chromium) - repeat the parameter for several: ?project=chromium&project=firefox. Each test then counts only those projects' variants. Every project when absent. Called browser, one value, until 1.0.0-beta.19 - browser is now a 400.",
             "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
             }
           },
           {
@@ -1941,17 +2129,20 @@
                   "since": "2026-08-25T08:00:00.000Z",
                   "until": "2026-09-24T08:00:00.000Z",
                   "branch": null,
-                  "browser": null,
+                  "projectFilter": [],
                   "sort": "stability",
                   "page": 1,
                   "perPage": 3,
-                  "total": 409,
-                  "pageCount": 137,
+                  "total": 205,
+                  "pageCount": 69,
                   "items": [
                     {
-                      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                      "testName": "checkout.spec.ts > Checkout > applies a coupon code",
                       "filePath": "tests/checkout.spec.ts",
-                      "browser": "chromium",
+                      "projects": [
+                        "chromium",
+                        "firefox"
+                      ],
                       "runs": 8,
                       "stableRuns": 4,
                       "flakyRuns": 4,
@@ -1960,6 +2151,7 @@
                       "flakyRate": 0.5,
                       "failureRate": 0,
                       "timeLostMs": 7361,
+                      "medianDurationMs": 1840,
                       "recentResults": [
                         {
                           "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
@@ -2026,12 +2218,37 @@
                         "branch": "main",
                         "kind": "retries",
                         "count": 3
-                      }
+                      },
+                      "variants": [
+                        {
+                          "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                          "project": "chromium",
+                          "runs": 8,
+                          "stableRuns": 4,
+                          "flakyRuns": 4,
+                          "failedRuns": 0,
+                          "timeLostMs": 7361,
+                          "medianDurationMs": 1840
+                        },
+                        {
+                          "testName": "firefox > checkout.spec.ts > Checkout > applies a coupon code",
+                          "project": "firefox",
+                          "runs": 8,
+                          "stableRuns": 8,
+                          "flakyRuns": 0,
+                          "failedRuns": 0,
+                          "timeLostMs": 0,
+                          "medianDurationMs": 1795
+                        }
+                      ]
                     },
                     {
-                      "testName": "chromium > search.spec.ts > Search > filters by date",
+                      "testName": "search.spec.ts > Search > filters by date",
                       "filePath": "tests/search.spec.ts",
-                      "browser": "chromium",
+                      "projects": [
+                        "chromium",
+                        "firefox"
+                      ],
                       "runs": 8,
                       "stableRuns": 5,
                       "flakyRuns": 0,
@@ -2040,6 +2257,7 @@
                       "flakyRate": 0,
                       "failureRate": 0.375,
                       "timeLostMs": 14308,
+                      "medianDurationMs": 2385,
                       "recentResults": [
                         {
                           "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
@@ -2106,12 +2324,37 @@
                         "branch": "main",
                         "kind": "failures",
                         "count": 2
-                      }
+                      },
+                      "variants": [
+                        {
+                          "testName": "chromium > search.spec.ts > Search > filters by date",
+                          "project": "chromium",
+                          "runs": 8,
+                          "stableRuns": 5,
+                          "flakyRuns": 0,
+                          "failedRuns": 3,
+                          "timeLostMs": 14308,
+                          "medianDurationMs": 2385
+                        },
+                        {
+                          "testName": "firefox > search.spec.ts > Search > filters by date",
+                          "project": "firefox",
+                          "runs": 8,
+                          "stableRuns": 8,
+                          "flakyRuns": 0,
+                          "failedRuns": 0,
+                          "timeLostMs": 0,
+                          "medianDurationMs": 2290
+                        }
+                      ]
                     },
                     {
-                      "testName": "chromium > auth.spec.ts > Login > remembers the device",
+                      "testName": "auth.spec.ts > Login > remembers the device",
                       "filePath": "tests/auth.spec.ts",
-                      "browser": "chromium",
+                      "projects": [
+                        "chromium",
+                        "firefox"
+                      ],
                       "runs": 7,
                       "stableRuns": 6,
                       "flakyRuns": 1,
@@ -2120,6 +2363,7 @@
                       "flakyRate": 0.14285714285714285,
                       "failureRate": 0,
                       "timeLostMs": 3071,
+                      "medianDurationMs": 3012,
                       "recentResults": [
                         {
                           "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
@@ -2186,7 +2430,29 @@
                         "branch": "feature/saved-carts",
                         "kind": "retries",
                         "count": 1
-                      }
+                      },
+                      "variants": [
+                        {
+                          "testName": "chromium > auth.spec.ts > Login > remembers the device",
+                          "project": "chromium",
+                          "runs": 7,
+                          "stableRuns": 6,
+                          "flakyRuns": 1,
+                          "failedRuns": 0,
+                          "timeLostMs": 3071,
+                          "medianDurationMs": 3012
+                        },
+                        {
+                          "testName": "firefox > auth.spec.ts > Login > remembers the device",
+                          "project": "firefox",
+                          "runs": 7,
+                          "stableRuns": 7,
+                          "flakyRuns": 0,
+                          "failedRuns": 0,
+                          "timeLostMs": 0,
+                          "medianDurationMs": 2954
+                        }
+                      ]
                     }
                   ]
                 }
@@ -2386,7 +2652,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -2431,7 +2734,7 @@
       "get": {
         "operationId": "getTestMetrics",
         "summary": "Get test metrics",
-        "description": "One test's metrics over the period: the fields of its /tests row, flat, beside the same period. A test with results but no run of the source in the period answers zeros and null rates rather than 404. Cheap: the list's queries, narrowed to one test; prefer it to /tests when the question is about one test.",
+        "description": "One test's metrics over the period: the fields of its /tests row, flat, beside the same period - across its Playwright projects, or one project's with project. A test with results but no run of the source in the period answers zeros and null rates rather than 404. Cheap: the list's queries, narrowed to one test; prefer it to /tests when the question is about one test.",
         "tags": [
           "Tests"
         ],
@@ -2449,7 +2752,7 @@
             "name": "testName",
             "in": "path",
             "required": true,
-            "description": "The full test name as Squally stores it (Playwright's title path). URL-encode it, including \"/\" as %2F. A name used in several spec files needs ?filePath=.",
+            "description": "The test's name WITHOUT its Playwright project, as /tests lists it (e.g. cart.spec.ts > adds an item): every project of the test. A stored name WITH its project (chromium > cart.spec.ts > adds an item, the identity before 1.0.0-beta.19) is that test in that project only. URL-encode it, including \"/\" as %2F. A name used in several spec files needs ?filePath=.",
             "schema": {
               "type": "string"
             }
@@ -2461,6 +2764,17 @@
             "description": "The spec file of the test, as stored (e.g. tests/checkout.spec.ts); an empty value means a test with no file. Needed only when the name exists in several files - the 400 ambiguous_test answer lists them.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "required": false,
+            "description": "Only this Playwright project's variant of the test, exactly (e.g. chromium) - the numbers as they were per variant before 1.0.0-beta.19. Every project of the test when absent. A project the test did not run in is 404 test_not_found.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           {
@@ -2529,9 +2843,13 @@
                   "since": "2026-08-25T08:00:00.000Z",
                   "until": "2026-09-24T08:00:00.000Z",
                   "branch": null,
-                  "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                  "projectFilter": null,
+                  "testName": "checkout.spec.ts > Checkout > applies a coupon code",
                   "filePath": "tests/checkout.spec.ts",
-                  "browser": "chromium",
+                  "projects": [
+                    "chromium",
+                    "firefox"
+                  ],
                   "runs": 8,
                   "stableRuns": 4,
                   "flakyRuns": 4,
@@ -2540,6 +2858,7 @@
                   "flakyRate": 0.5,
                   "failureRate": 0,
                   "timeLostMs": 7361,
+                  "medianDurationMs": 1840,
                   "recentResults": [
                     {
                       "runId": "5c8e2a17-9d4b-4f60-b3a1-7e2d9c0f4b58",
@@ -2606,7 +2925,29 @@
                     "branch": "main",
                     "kind": "retries",
                     "count": 3
-                  }
+                  },
+                  "variants": [
+                    {
+                      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                      "project": "chromium",
+                      "runs": 8,
+                      "stableRuns": 4,
+                      "flakyRuns": 4,
+                      "failedRuns": 0,
+                      "timeLostMs": 7361,
+                      "medianDurationMs": 1840
+                    },
+                    {
+                      "testName": "firefox > checkout.spec.ts > Checkout > applies a coupon code",
+                      "project": "firefox",
+                      "runs": 8,
+                      "stableRuns": 8,
+                      "flakyRuns": 0,
+                      "failedRuns": 0,
+                      "timeLostMs": 0,
+                      "medianDurationMs": 1795
+                    }
+                  ]
                 }
               }
             }
@@ -2820,7 +3161,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -2865,7 +3243,7 @@
       "get": {
         "operationId": "getTestHistory",
         "summary": "Get test history",
-        "description": "Get a test's history across runs. One test in every run of a period, newest first: final status, duration, attempts and time spent on retries. Every run is listed; source decides which are counted. Moderate.",
+        "description": "Get a test's history across runs. One test in every run of a period, newest first: final status, duration, attempts and time spent on retries - across its Playwright projects, each project's own result beside it, or one project's with project. Every run is listed; source decides which are counted. Moderate.",
         "tags": [
           "Tests"
         ],
@@ -2883,7 +3261,7 @@
             "name": "testName",
             "in": "path",
             "required": true,
-            "description": "The full test name as Squally stores it (Playwright's title path). URL-encode it, including \"/\" as %2F. A name used in several spec files needs ?filePath=.",
+            "description": "The test's name WITHOUT its Playwright project, as /tests lists it (e.g. cart.spec.ts > adds an item): every project of the test. A stored name WITH its project (chromium > cart.spec.ts > adds an item, the identity before 1.0.0-beta.19) is that test in that project only. URL-encode it, including \"/\" as %2F. A name used in several spec files needs ?filePath=.",
             "schema": {
               "type": "string"
             }
@@ -2895,6 +3273,17 @@
             "description": "The spec file of the test, as stored (e.g. tests/checkout.spec.ts); an empty value means a test with no file. Needed only when the name exists in several files - the 400 ambiguous_test answer lists them.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "required": false,
+            "description": "Only this Playwright project's variant of the test, exactly (e.g. chromium) - the numbers as they were per variant before 1.0.0-beta.19. Every project of the test when absent. A project the test did not run in is 404 test_not_found.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           {
@@ -2948,8 +3337,9 @@
                     "name": "storefront-web"
                   },
                   "test": {
-                    "name": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
-                    "filePath": "tests/checkout.spec.ts"
+                    "name": "checkout.spec.ts > Checkout > applies a coupon code",
+                    "filePath": "tests/checkout.spec.ts",
+                    "project": null
                   },
                   "window": {
                     "days": 30,
@@ -2969,14 +3359,26 @@
                       "durationMs": 1840,
                       "timedOut": false,
                       "timeoutMs": 30000,
-                      "attempts": 2,
-                      "wastedMs": 6210
+                      "attempts": 3,
+                      "wastedMs": 6210,
+                      "projects": [
+                        {
+                          "project": "chromium",
+                          "status": "passed",
+                          "attempts": 2
+                        },
+                        {
+                          "project": "firefox",
+                          "status": "passed",
+                          "attempts": 1
+                        }
+                      ]
                     },
                     {
                       "runId": "7d2f4b19-3c8e-4a61-9e07-5b1d8c2a6f34",
                       "runNumber": 1283,
-                      "local": true,
-                      "counted": false,
+                      "local": false,
+                      "counted": true,
                       "branch": "feature/saved-carts",
                       "testedRevision": "c4f7a1e9b3d5c8e2f0a6b4d9e1c7f3a5b8d2e0f6",
                       "startedAt": "2026-09-23T16:05:40.000Z",
@@ -2984,8 +3386,20 @@
                       "durationMs": 1795,
                       "timedOut": null,
                       "timeoutMs": null,
-                      "attempts": 1,
-                      "wastedMs": 0
+                      "attempts": 2,
+                      "wastedMs": 0,
+                      "projects": [
+                        {
+                          "project": "chromium",
+                          "status": "passed",
+                          "attempts": 1
+                        },
+                        {
+                          "project": "firefox",
+                          "status": "passed",
+                          "attempts": 1
+                        }
+                      ]
                     }
                   ]
                 }
@@ -3201,7 +3615,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -3358,16 +3809,19 @@
                       "fileCount": 1,
                       "testCount": 1,
                       "testNames": [
-                        "chromium > checkout.spec.ts > Checkout > applies a coupon code"
+                        "checkout.spec.ts > Checkout > applies a coupon code"
                       ],
-                      "occurrenceCount": 9,
-                      "runCount": 7,
-                      "failedCount": 5,
-                      "flakyCount": 2,
-                      "failedRunCount": 5,
-                      "flakyRunCount": 2,
+                      "projects": [
+                        "chromium"
+                      ],
+                      "occurrenceCount": 4,
+                      "runCount": 4,
+                      "failedCount": 0,
+                      "flakyCount": 4,
+                      "failedRunCount": 0,
+                      "flakyRunCount": 4,
                       "massFailureRunCount": 0,
-                      "firstSeen": "2026-09-02T11:20:44.000Z",
+                      "firstSeen": "2026-09-14T15:14:27.000Z",
                       "lastSeen": "2026-09-24T07:34:05.000Z"
                     }
                   ],
@@ -3570,7 +4024,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -3704,27 +4195,33 @@
                     "fileCount": 1,
                     "testCount": 1,
                     "testNames": [
-                      "chromium > checkout.spec.ts > Checkout > applies a coupon code"
+                      "checkout.spec.ts > Checkout > applies a coupon code"
                     ],
-                    "occurrenceCount": 9,
-                    "runCount": 7,
-                    "failedCount": 5,
-                    "flakyCount": 2,
-                    "failedRunCount": 5,
-                    "flakyRunCount": 2,
+                    "projects": [
+                      "chromium"
+                    ],
+                    "occurrenceCount": 4,
+                    "runCount": 4,
+                    "failedCount": 0,
+                    "flakyCount": 4,
+                    "failedRunCount": 0,
+                    "flakyRunCount": 4,
                     "massFailureRunCount": 0,
-                    "firstSeen": "2026-09-02T11:20:44.000Z",
+                    "firstSeen": "2026-09-14T15:14:27.000Z",
                     "lastSeen": "2026-09-24T07:34:05.000Z"
                   },
                   "windowEmpty": false,
                   "tests": [
                     {
-                      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                      "testName": "checkout.spec.ts > Checkout > applies a coupon code",
                       "filePath": "tests/checkout.spec.ts",
-                      "occurrenceCount": 9,
-                      "runCount": 7,
-                      "failedCount": 5,
-                      "flakyCount": 2
+                      "projects": [
+                        "chromium"
+                      ],
+                      "occurrenceCount": 4,
+                      "runCount": 4,
+                      "failedCount": 0,
+                      "flakyCount": 4
                     }
                   ],
                   "runs": [
@@ -3733,12 +4230,18 @@
                       "runNumber": 1284,
                       "branch": "main",
                       "startedAt": "2026-09-24T07:31:12.000Z",
-                      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
-                      "filePath": "tests/checkout.spec.ts",
-                      "attempts": 2,
-                      "occurrences": 1,
-                      "finalStatus": "passed",
-                      "massFailure": false
+                      "status": "flaky",
+                      "massFailure": false,
+                      "tests": [
+                        {
+                          "testName": "checkout.spec.ts > Checkout > applies a coupon code",
+                          "filePath": "tests/checkout.spec.ts",
+                          "projects": [
+                            "chromium"
+                          ],
+                          "finalStatus": "passed"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -3946,7 +4449,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -4080,14 +4620,14 @@
                     "startedAt": "2026-09-24T07:31:12.000Z",
                     "finishedAt": "2026-09-24T07:39:47.000Z",
                     "total": 412,
-                    "passed": 404,
-                    "flaky": 4,
+                    "passed": 408,
+                    "flaky": 1,
                     "failed": 0,
-                    "skipped": 4
+                    "skipped": 3
                   },
                   "runsInWindow": 11,
                   "unfinishedRuns": 1,
-                  "suiteSize": 412,
+                  "suiteSize": 206,
                   "windowStability": 99,
                   "timeLost": {
                     "lostMs": 5112000,
@@ -4095,30 +4635,33 @@
                     "wastedAttempts": 71,
                     "wallClockMs": 213000000
                   },
-                  "failingTests": {
-                    "failing": 1,
-                    "testsRun": 412
-                  },
                   "testMetrics": {
                     "population": "ci_groups_finished_not_mass_failure",
                     "days": 30,
                     "flakyTests": 7,
                     "failingTests": 2,
-                    "tests": 409
+                    "tests": 205
                   },
                   "slowestTests": [
                     {
-                      "testName": "chromium > checkout.spec.ts > Checkout > pays with a saved card",
+                      "testName": "checkout.spec.ts > Checkout > pays with a saved card",
                       "filePath": "tests/checkout.spec.ts",
+                      "projects": [
+                        "chromium",
+                        "firefox"
+                      ],
                       "medianMs": 14820,
-                      "runs": 57
+                      "runs": 11
                     }
                   ],
                   "timeSinks": [
                     {
-                      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+                      "testName": "checkout.spec.ts > Checkout > applies a coupon code",
                       "filePath": "tests/checkout.spec.ts",
-                      "lostMs": 1968000
+                      "projects": [
+                        "chromium"
+                      ],
+                      "lostMs": 18630
                     }
                   ],
                   "runsSeries": [
@@ -4332,7 +4875,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -4575,7 +5155,44 @@
             }
           },
           "429": {
-            "description": "Rate limited by the edge firewall, no JSON body. 429: wait 60 seconds, then retry. The edge counts requests per key in 60-second windows and sends no Retry-After header."
+            "description": "Rate limited: more than 60 requests within 60 seconds with one read key. 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no Retry-After; wait 60 seconds just the same.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying: 60.",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "A sentence for a human. May be reworded."
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "rate_limited"
+                      ],
+                      "description": "Stable slug - match on this, not on the sentence."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "code"
+                  ]
+                },
+                "example": {
+                  "error": "Too many requests with this read key. Wait 60 seconds, then retry.",
+                  "code": "rate_limited"
+                }
+              }
+            }
           },
           "500": {
             "description": "Error: internal_error",
@@ -4804,7 +5421,7 @@
                   "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit, counted from its shards' last activity - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
                 },
                 "jobKey": {
-                  "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15.",
+                  "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, <check name> · <key>: the check name of the linked repository, \"Squally\" for the first project that links a repository. null when the job set none. Since 1.0.0-beta.15.",
                   "type": [
                     "string",
                     "null"
@@ -5127,7 +5744,7 @@
                 "description": "Whether the run is settled: its status and counts are final and it counts in the dashboard's figures. false while a shard is running, and while the run still waits for a shard within the run time limit, counted from its shards' last activity - once that passes, the hourly check settles it as incomplete. The dashboard's unfinished runs are the ones not settled. Since 1.0.0-beta.15."
               },
               "jobKey": {
-                "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, Squally · <key>. null when the job set none. Since 1.0.0-beta.15.",
+                "description": "The job key the reporter sent (SQUALLY_CI_JOB_KEY, squally-reporter 0.11.0): which job of a CI run this is, for example the browser of a matrix. Each job is its own run with its own GitHub check, <check name> · <key>: the check name of the linked repository, \"Squally\" for the first project that links a repository. null when the job set none. Since 1.0.0-beta.15.",
                 "type": [
                   "string",
                   "null"
@@ -5905,12 +6522,12 @@
               "null"
             ]
           },
-          "browser": {
-            "description": "The browser filter applied; null for every test.",
-            "type": [
-              "string",
-              "null"
-            ]
+          "projectFilter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The project filter applied - the project parameter's values, code-point order; empty for every project. Each item then holds only those projects' variants (since 1.0.0-beta.19; browser, one value, before)."
           },
           "sort": {
             "type": "string",
@@ -5930,7 +6547,7 @@
           },
           "total": {
             "type": "integer",
-            "description": "Tests matching the query across all pages: every test with at least one run of the population in the period, narrowed by search, branch and browser."
+            "description": "Tests matching the query across all pages - each test once across projects: every test with at least one run of the population in the period, narrowed by search, branch and project."
           },
           "pageCount": {
             "type": "integer"
@@ -5942,7 +6559,7 @@
               "properties": {
                 "testName": {
                   "type": "string",
-                  "description": "The stored name: Playwright's title path, the Playwright project first when there is one. The identity other test routes take."
+                  "description": "The test's name WITHOUT its Playwright project (\"cart.spec.ts > adds an item\" for chromium's and firefox's \"<project> > cart.spec.ts > adds an item\") - the identity GET /tests/{testName} takes. Since 1.0.0-beta.19; the stored name with its project, one item per project, before."
                 },
                 "filePath": {
                   "type": [
@@ -5950,28 +6567,28 @@
                     "null"
                   ]
                 },
-                "browser": {
-                  "description": "The Playwright project the name starts with (chromium in \"chromium > cart.spec.ts > adds an item\") - null when the name has none, i.e. when its second part is not the test's own file.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Every Playwright project the test ran in, code-point order; empty when it ran under none. Replaces browser (1.0.0-beta.19)."
                 },
                 "runs": {
                   "type": "integer",
-                  "description": "Runs of the population in which the test has a final attempt that did not skip: stableRuns + flakyRuns + failedRuns. A sharded run counts once; the final attempt is the one with the most retries, then from the lowest shard."
+                  "description": "Runs of the population in which the test has a final attempt that did not skip in any of its projects: stableRuns + flakyRuns + failedRuns. A sharded run counts once; per project, the final attempt is the one with the most retries, then from the lowest shard."
                 },
                 "stableRuns": {
                   "type": "integer",
-                  "description": "Of runs, those whose final attempt passed on the first try."
+                  "description": "Of runs, those in which it passed on the first try wherever it ran."
                 },
                 "flakyRuns": {
                   "type": "integer",
-                  "description": "Of runs, those whose final attempt passed after at least one retry."
+                  "description": "Of runs, those in which it passed only after a retry in some project and failed in none."
                 },
                 "failedRuns": {
                   "type": "integer",
-                  "description": "Of runs, those whose final attempt failed."
+                  "description": "Of runs, those in which its final attempt failed in any project - failed wins over flaky."
                 },
                 "stability": {
                   "description": "stableRuns / runs, a fraction from 0 to 1. null only when runs is 0.",
@@ -5996,7 +6613,18 @@
                 },
                 "timeLostMs": {
                   "type": "integer",
-                  "description": "Time spent on attempts that did not count, in ms, summed over runs: a failed run loses every attempt it made, a run rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+                  "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+                },
+                "medianDurationMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Per run the slowest project's final attempt, the median over the runs (the lower middle); null when no run names a duration (since 1.0.0-beta.19)."
                 },
                 "recentResults": {
                   "type": "array",
@@ -6040,7 +6668,7 @@
                       "result"
                     ]
                   },
-                  "description": "The test's last 20 runs in the period, oldest first, including runs whose final attempt skipped (result skipped). Empty when it has none."
+                  "description": "The test's last 20 runs in the period, oldest first, each over its projects: failed when it failed in any, flaky when it passed after a retry in one and failed in none, stable, or skipped when every project skipped. Empty when it has none."
                 },
                 "branches": {
                   "type": "array",
@@ -6085,12 +6713,70 @@
                     }
                   ],
                   "description": "The branch with the most failed runs (kind failures, count = those runs); when no run failed, the branch with the most flaky runs (kind retries, count = those runs); null when neither. Ties go to the branch name in code-point order, a null branch last."
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "testName": {
+                        "type": "string",
+                        "description": "The variant's stored name: Playwright's title path, its project first - the name GET /runs/{runId} and the attempts route carry."
+                      },
+                      "project": {
+                        "description": "Its Playwright project; null for a result that ran under no named project.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "runs": {
+                        "type": "integer",
+                        "description": "Runs of the population in which this project's final attempt did not skip."
+                      },
+                      "stableRuns": {
+                        "type": "integer"
+                      },
+                      "flakyRuns": {
+                        "type": "integer"
+                      },
+                      "failedRuns": {
+                        "type": "integer"
+                      },
+                      "timeLostMs": {
+                        "type": "integer",
+                        "description": "This project's time lost - see the test's timeLostMs."
+                      },
+                      "medianDurationMs": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The median of this project's final-attempt durations over its runs, the lower middle; null when none names one."
+                      }
+                    },
+                    "required": [
+                      "testName",
+                      "project",
+                      "runs",
+                      "stableRuns",
+                      "flakyRuns",
+                      "failedRuns",
+                      "timeLostMs",
+                      "medianDurationMs"
+                    ]
+                  },
+                  "description": "One item per project's variant, project in code-point order (none last), each with its own numbers - the Test explorer's breakdown (since 1.0.0-beta.19)."
                 }
               },
               "required": [
                 "testName",
                 "filePath",
-                "browser",
+                "projects",
                 "runs",
                 "stableRuns",
                 "flakyRuns",
@@ -6099,9 +6785,11 @@
                 "flakyRate",
                 "failureRate",
                 "timeLostMs",
+                "medianDurationMs",
                 "recentResults",
                 "branches",
-                "topBranch"
+                "topBranch",
+                "variants"
               ]
             }
           }
@@ -6113,7 +6801,7 @@
           "since",
           "until",
           "branch",
-          "browser",
+          "projectFilter",
           "sort",
           "page",
           "perPage",
@@ -6170,9 +6858,16 @@
               "null"
             ]
           },
+          "projectFilter": {
+            "description": "The one project the numbers count - the project parameter, or the project of the variant name the path gave; null for every project of the test (since 1.0.0-beta.19).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "testName": {
             "type": "string",
-            "description": "The stored name: Playwright's title path, the Playwright project first when there is one. The identity other test routes take."
+            "description": "The test's name WITHOUT its Playwright project (\"cart.spec.ts > adds an item\" for chromium's and firefox's \"<project> > cart.spec.ts > adds an item\") - the identity GET /tests/{testName} takes. Since 1.0.0-beta.19; the stored name with its project, one item per project, before."
           },
           "filePath": {
             "type": [
@@ -6180,28 +6875,28 @@
               "null"
             ]
           },
-          "browser": {
-            "description": "The Playwright project the name starts with (chromium in \"chromium > cart.spec.ts > adds an item\") - null when the name has none, i.e. when its second part is not the test's own file.",
-            "type": [
-              "string",
-              "null"
-            ]
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every Playwright project the test ran in, code-point order; empty when it ran under none. Replaces browser (1.0.0-beta.19)."
           },
           "runs": {
             "type": "integer",
-            "description": "Runs of the population in which the test has a final attempt that did not skip: stableRuns + flakyRuns + failedRuns. A sharded run counts once; the final attempt is the one with the most retries, then from the lowest shard."
+            "description": "Runs of the population in which the test has a final attempt that did not skip in any of its projects: stableRuns + flakyRuns + failedRuns. A sharded run counts once; per project, the final attempt is the one with the most retries, then from the lowest shard."
           },
           "stableRuns": {
             "type": "integer",
-            "description": "Of runs, those whose final attempt passed on the first try."
+            "description": "Of runs, those in which it passed on the first try wherever it ran."
           },
           "flakyRuns": {
             "type": "integer",
-            "description": "Of runs, those whose final attempt passed after at least one retry."
+            "description": "Of runs, those in which it passed only after a retry in some project and failed in none."
           },
           "failedRuns": {
             "type": "integer",
-            "description": "Of runs, those whose final attempt failed."
+            "description": "Of runs, those in which its final attempt failed in any project - failed wins over flaky."
           },
           "stability": {
             "description": "stableRuns / runs, a fraction from 0 to 1. null only when runs is 0.",
@@ -6226,7 +6921,18 @@
           },
           "timeLostMs": {
             "type": "integer",
-            "description": "Time spent on attempts that did not count, in ms, summed over runs: a failed run loses every attempt it made, a run rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+            "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+          },
+          "medianDurationMs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per run the slowest project's final attempt, the median over the runs (the lower middle); null when no run names a duration (since 1.0.0-beta.19)."
           },
           "recentResults": {
             "type": "array",
@@ -6270,7 +6976,7 @@
                 "result"
               ]
             },
-            "description": "The test's last 20 runs in the period, oldest first, including runs whose final attempt skipped (result skipped). Empty when it has none."
+            "description": "The test's last 20 runs in the period, oldest first, each over its projects: failed when it failed in any, flaky when it passed after a retry in one and failed in none, stable, or skipped when every project skipped. Empty when it has none."
           },
           "branches": {
             "type": "array",
@@ -6315,6 +7021,64 @@
               }
             ],
             "description": "The branch with the most failed runs (kind failures, count = those runs); when no run failed, the branch with the most flaky runs (kind retries, count = those runs); null when neither. Ties go to the branch name in code-point order, a null branch last."
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "testName": {
+                  "type": "string",
+                  "description": "The variant's stored name: Playwright's title path, its project first - the name GET /runs/{runId} and the attempts route carry."
+                },
+                "project": {
+                  "description": "Its Playwright project; null for a result that ran under no named project.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "runs": {
+                  "type": "integer",
+                  "description": "Runs of the population in which this project's final attempt did not skip."
+                },
+                "stableRuns": {
+                  "type": "integer"
+                },
+                "flakyRuns": {
+                  "type": "integer"
+                },
+                "failedRuns": {
+                  "type": "integer"
+                },
+                "timeLostMs": {
+                  "type": "integer",
+                  "description": "This project's time lost - see the test's timeLostMs."
+                },
+                "medianDurationMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The median of this project's final-attempt durations over its runs, the lower middle; null when none names one."
+                }
+              },
+              "required": [
+                "testName",
+                "project",
+                "runs",
+                "stableRuns",
+                "flakyRuns",
+                "failedRuns",
+                "timeLostMs",
+                "medianDurationMs"
+              ]
+            },
+            "description": "One item per project's variant, project in code-point order (none last), each with its own numbers - the Test explorer's breakdown (since 1.0.0-beta.19)."
           }
         },
         "required": [
@@ -6324,9 +7088,10 @@
           "since",
           "until",
           "branch",
+          "projectFilter",
           "testName",
           "filePath",
-          "browser",
+          "projects",
           "runs",
           "stableRuns",
           "flakyRuns",
@@ -6335,9 +7100,11 @@
           "flakyRate",
           "failureRate",
           "timeLostMs",
+          "medianDurationMs",
           "recentResults",
           "branches",
-          "topBranch"
+          "topBranch",
+          "variants"
         ]
       },
       "TestHistoryResponse": {
@@ -6362,9 +7129,17 @@
             "type": "object",
             "properties": {
               "name": {
-                "type": "string"
+                "type": "string",
+                "description": "The test's name without its Playwright project (since 1.0.0-beta.19; the name as given before)."
               },
               "filePath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project": {
+                "description": "The one project the history is of - the project parameter, or the project of the variant name the path gave; null for every project (since 1.0.0-beta.19).",
                 "type": [
                   "string",
                   "null"
@@ -6373,7 +7148,8 @@
             },
             "required": [
               "name",
-              "filePath"
+              "filePath",
+              "project"
             ]
           },
           "window": {
@@ -6436,7 +7212,7 @@
                 },
                 "status": {
                   "type": "string",
-                  "description": "The final attempt's status across the run's shards, read through test.fail()."
+                  "description": "The final attempt's status across the run's shards, read through test.fail() - over the test's projects: failed when it failed in any, passed when it passed in any, skipped otherwise (since 1.0.0-beta.19)."
                 },
                 "durationMs": {
                   "anyOf": [
@@ -6446,10 +7222,11 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The final attempt's duration - across projects, the slowest project's (since 1.0.0-beta.19)."
                 },
                 "timedOut": {
-                  "description": "The final attempt's. Whether the attempt ended by running into its time limit (Playwright's timedOut). null when the reporter did not say - every result from a reporter before 0.10.0.",
+                  "description": "The final attempt's - across projects, true when any project's was. Whether the attempt ended by running into its time limit (Playwright's timedOut). null when the reporter did not say - every result from a reporter before 0.10.0.",
                   "type": [
                     "boolean",
                     "null"
@@ -6464,13 +7241,43 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The final attempt's. The time limit Playwright applied to the attempt, in milliseconds; 0 means no limit. null when the reporter did not say."
+                  "description": "The final attempt's - across projects, the largest. The time limit Playwright applied to the attempt, in milliseconds; 0 means no limit. null when the reporter did not say."
                 },
                 "attempts": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Every attempt of the test in the run, every project's."
                 },
                 "wastedMs": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Duration of the attempts that did not count - every attempt but each project's final one."
+                },
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "project": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "This project's final attempt, through test.fail(): passed, failed or skipped."
+                      },
+                      "attempts": {
+                        "type": "integer",
+                        "description": "This project's attempts in the run."
+                      }
+                    },
+                    "required": [
+                      "project",
+                      "status",
+                      "attempts"
+                    ]
+                  },
+                  "description": "Each project's own result in the run, project in code-point order (since 1.0.0-beta.19). One item under the project parameter."
                 }
               },
               "required": [
@@ -6486,7 +7293,8 @@
                 "timedOut",
                 "timeoutMs",
                 "attempts",
-                "wastedMs"
+                "wastedMs",
+                "projects"
               ]
             }
           }
@@ -6596,13 +7404,22 @@
                   "type": "integer"
                 },
                 "testCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "The tests the error hit, each once across Playwright projects - a name without its project and a file (since 1.0.0-beta.19; each project's variant its own before)."
                 },
                 "testNames": {
                   "type": "array",
                   "items": {
                     "type": "string"
-                  }
+                  },
+                  "description": "Their names without the project, code-point order (since 1.0.0-beta.19; the stored names with it before)."
+                },
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The Playwright projects those tests ran in, code-point order; empty when none ran under a named project (since 1.0.0-beta.19)."
                 },
                 "occurrenceCount": {
                   "type": "integer"
@@ -6613,11 +7430,11 @@
                 },
                 "failedCount": {
                   "type": "integer",
-                  "description": "Of the (run, test) pairs the error hit, how many ended failed: the test's final attempt across all the run's shards failed (since 1.0.0-beta.9)."
+                  "description": "Of the (run, test) pairs the error hit - a test once across its projects - how many ended failed: the test's final attempt across all the run's shards failed in any project the error hit (since 1.0.0-beta.9; across projects since 1.0.0-beta.19, each project's variant its own pair before)."
                 },
                 "flakyCount": {
                   "type": "integer",
-                  "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
+                  "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry in a project the error hit and failed in none. A pair whose final attempts skipped is neither (since 1.0.0-beta.9; across projects since 1.0.0-beta.19)."
                 },
                 "failedRunCount": {
                   "type": "integer",
@@ -6650,6 +7467,7 @@
                 "fileCount",
                 "testCount",
                 "testNames",
+                "projects",
                 "occurrenceCount",
                 "runCount",
                 "failedCount",
@@ -6754,13 +7572,22 @@
                 "type": "integer"
               },
               "testCount": {
-                "type": "integer"
+                "type": "integer",
+                "description": "The tests the error hit, each once across Playwright projects - a name without its project and a file (since 1.0.0-beta.19; each project's variant its own before)."
               },
               "testNames": {
                 "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "description": "Their names without the project, code-point order (since 1.0.0-beta.19; the stored names with it before)."
+              },
+              "projects": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The Playwright projects those tests ran in, code-point order; empty when none ran under a named project (since 1.0.0-beta.19)."
               },
               "occurrenceCount": {
                 "type": "integer"
@@ -6771,11 +7598,11 @@
               },
               "failedCount": {
                 "type": "integer",
-                "description": "Of the (run, test) pairs the error hit, how many ended failed: the test's final attempt across all the run's shards failed (since 1.0.0-beta.9)."
+                "description": "Of the (run, test) pairs the error hit - a test once across its projects - how many ended failed: the test's final attempt across all the run's shards failed in any project the error hit (since 1.0.0-beta.9; across projects since 1.0.0-beta.19, each project's variant its own pair before)."
               },
               "flakyCount": {
                 "type": "integer",
-                "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry. A pair whose final attempt skipped is neither (since 1.0.0-beta.9)."
+                "description": "Of the same pairs, how many ended flaky: the final attempt passed after a retry in a project the error hit and failed in none. A pair whose final attempts skipped is neither (since 1.0.0-beta.9; across projects since 1.0.0-beta.19)."
               },
               "failedRunCount": {
                 "type": "integer",
@@ -6808,6 +7635,7 @@
               "fileCount",
               "testCount",
               "testNames",
+              "projects",
               "occurrenceCount",
               "runCount",
               "failedCount",
@@ -6829,7 +7657,8 @@
               "type": "object",
               "properties": {
                 "testName": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The test's name without its Playwright project (since 1.0.0-beta.19)."
                 },
                 "filePath": {
                   "type": [
@@ -6837,31 +7666,41 @@
                     "null"
                   ]
                 },
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The projects it hit the error in, code-point order; empty when none is named (since 1.0.0-beta.19)."
+                },
                 "occurrenceCount": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "Attempts with this error, every project's."
                 },
                 "runCount": {
                   "type": "integer",
-                  "description": "Runs in which this test hit the error (since 1.0.0-beta.9)."
+                  "description": "Runs in which this test hit the error - a run once, however many of its projects (since 1.0.0-beta.9; across projects since 1.0.0-beta.19)."
                 },
                 "failedCount": {
                   "type": "integer",
-                  "description": "Of those runs, the ones the test ended failed (since 1.0.0-beta.9)."
+                  "description": "Of those runs, the ones the test ended failed in any project the error hit (since 1.0.0-beta.9)."
                 },
                 "flakyCount": {
                   "type": "integer",
-                  "description": "Of those runs, the ones the test ended flaky - passed after a retry (since 1.0.0-beta.9)."
+                  "description": "Of those runs, the ones it ended flaky - passed after a retry in a project the error hit and failed in none (since 1.0.0-beta.9)."
                 }
               },
               "required": [
                 "testName",
                 "filePath",
+                "projects",
                 "occurrenceCount",
                 "runCount",
                 "failedCount",
                 "flakyCount"
               ]
-            }
+            },
+            "description": "One item per test the error hit, each once across Playwright projects - the error page's Affected tests (since 1.0.0-beta.19; one per project's variant before). Their failedCount and flakyCount sum to the signature's."
           },
           "runs": {
             "type": "array",
@@ -6870,7 +7709,7 @@
               "properties": {
                 "runId": {
                   "type": "string",
-                  "description": "The run, by the id GET /projects/{projectId}/runs gives it - one row per run and test, however many shards the run had (since 1.0.0-beta.9; it was one row per shard, with the shard's id)."
+                  "description": "The run, by the id GET /projects/{projectId}/runs gives it - one row per run, however many shards and tests (since 1.0.0-beta.19; one row per run and test before)."
                 },
                 "runNumber": {
                   "type": "integer"
@@ -6885,30 +7724,54 @@
                   "type": "string",
                   "format": "date-time"
                 },
-                "testName": {
-                  "type": "string"
-                },
-                "filePath": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "attempts": {
-                  "type": "integer",
-                  "description": "Every attempt of the test in the run, retries and every shard included."
-                },
-                "occurrences": {
-                  "type": "integer",
-                  "description": "How many of those carry this error."
-                },
-                "finalStatus": {
+                "status": {
                   "type": "string",
-                  "description": "The test's final attempt across all the run's shards, through test.fail(): passed, failed or skipped."
+                  "enum": [
+                    "failed",
+                    "flaky",
+                    "skipped"
+                  ],
+                  "description": "How the run ended for the tests the error hit - the error page's mark: failed when one ended failed, flaky when a retry rescued every one, skipped otherwise (since 1.0.0-beta.19)."
                 },
                 "massFailure": {
                   "type": "boolean",
                   "description": "The run was a mass failure as a whole (since 1.0.0-beta.9)."
+                },
+                "tests": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "testName": {
+                        "type": "string",
+                        "description": "The test's name without its Playwright project."
+                      },
+                      "filePath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "projects": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "The projects it hit the error in, in this run, code-point order."
+                      },
+                      "finalStatus": {
+                        "type": "string",
+                        "description": "The test's final attempt in the run, through test.fail(), over those projects: failed when any failed, passed when any passed, skipped otherwise."
+                      }
+                    },
+                    "required": [
+                      "testName",
+                      "filePath",
+                      "projects",
+                      "finalStatus"
+                    ]
+                  },
+                  "description": "The tests the error hit in this run, each once across projects, by name then file (since 1.0.0-beta.19)."
                 }
               },
               "required": [
@@ -6916,14 +7779,12 @@
                 "runNumber",
                 "branch",
                 "startedAt",
-                "testName",
-                "filePath",
-                "attempts",
-                "occurrences",
-                "finalStatus",
-                "massFailure"
+                "status",
+                "massFailure",
+                "tests"
               ]
-            }
+            },
+            "description": "The runs with this error, newest first, one row per run - the error page's runs list (since 1.0.0-beta.19)."
           }
         },
         "required": [
@@ -7077,7 +7938,7 @@
           },
           "suiteSize": {
             "type": "integer",
-            "description": "The largest run in the window, every test once over all its shards."
+            "description": "The largest run in the window, every test once over all its shards and across its Playwright projects - Analytics' Suite size (across projects since 1.0.0-beta.19; each project's variant its own before)."
           },
           "windowStability": {
             "description": "Suite stability, 0-100: of the final test results in the window's finished runs of the source on the branch (skipped results left out), the share that passed on the first try, rounded. Mass-failure runs count (since 1.0.0-beta.7). A result that passed only after a retry counts against it. null when no such result exists.",
@@ -7113,22 +7974,6 @@
             ],
             "description": "Time spent on attempts a later retry superseded, in the window's finished runs of the source on the branch; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
           },
-          "failingTests": {
-            "type": "object",
-            "properties": {
-              "failing": {
-                "type": "integer"
-              },
-              "testsRun": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "failing",
-              "testsRun"
-            ],
-            "description": "Tests whose final attempt failed in at least one of the window's finished runs of the source on the branch, out of the tests those runs reported (a skipped test counts as reported)."
-          },
           "testMetrics": {
             "type": "object",
             "properties": {
@@ -7147,15 +7992,15 @@
               },
               "flakyTests": {
                 "type": "integer",
-                "description": "Of tests, the tests with at least one flaky run in the period (a final attempt that passed after a retry) - the dashboard's Flaky tests tile. Called testsWithRetries until 1.0.0-beta.15."
+                "description": "Of tests, the tests with at least one flaky run in the period - passed only after a retry in some project and failed in none - the dashboard's Flaky tests tile. Called testsWithRetries until 1.0.0-beta.15; across projects since 1.0.0-beta.19."
               },
               "failingTests": {
                 "type": "integer",
-                "description": "Of tests, the tests with at least one failed run in the period."
+                "description": "Of tests, the tests with at least one failed run in the period - failed in any project. The dashboard's Failing tests tile; the top-level failingTests went in 1.0.0-beta.19."
               },
               "tests": {
                 "type": "integer",
-                "description": "Tests with at least one run of the population in the period - CI runs by default. Called ciTests until 1.0.0-beta.15."
+                "description": "Tests with at least one run of the population in the period, each once across Playwright projects - runs of the source parameter's kind, all by default since 1.0.0-beta.18 (CI before). Called ciTests until 1.0.0-beta.15; across projects since 1.0.0-beta.19."
               }
             },
             "required": [
@@ -7165,7 +8010,7 @@
               "failingTests",
               "tests"
             ],
-            "description": "The dashboard's Flaky tests and Failing tests tiles and their denominator, counted like /tests on the branch (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
+            "description": "The dashboard's Flaky tests and Failing tests tiles and their denominator - each test once across Playwright projects, a run once (since 1.0.0-beta.19; each project's variant its own before) - on the branch (since 1.0.0-beta.7; every branch before). Mass-failure runs are left out here, as in every per-test metric."
           },
           "slowestTests": {
             "type": "array",
@@ -7173,13 +8018,21 @@
               "type": "object",
               "properties": {
                 "testName": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The test's name without its Playwright project (since 1.0.0-beta.19)."
                 },
                 "filePath": {
                   "type": [
                     "string",
                     "null"
                   ]
+                },
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Every project it ran in, code-point order (since 1.0.0-beta.19)."
                 },
                 "medianMs": {
                   "type": "number"
@@ -7191,11 +8044,12 @@
               "required": [
                 "testName",
                 "filePath",
+                "projects",
                 "medianMs",
                 "runs"
               ]
             },
-            "description": "Up to 5 tests by the median of their final-attempt durations, one per run, at least 3 runs; skipped results left out."
+            "description": "Up to 5 tests by their median duration - per run the slowest project's final attempt, the median over the runs - at least 3 runs; skipped results left out. Analytics' Slowest tests (across projects since 1.0.0-beta.19; per project's variant before)."
           },
           "timeSinks": {
             "type": "array",
@@ -7203,13 +8057,21 @@
               "type": "object",
               "properties": {
                 "testName": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The test's name without its Playwright project (since 1.0.0-beta.19)."
                 },
                 "filePath": {
                   "type": [
                     "string",
                     "null"
                   ]
+                },
+                "projects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The projects whose attempts lost the time, code-point order (since 1.0.0-beta.19)."
                 },
                 "lostMs": {
                   "type": "number"
@@ -7218,10 +8080,11 @@
               "required": [
                 "testName",
                 "filePath",
+                "projects",
                 "lostMs"
               ]
             },
-            "description": "Up to 5 tests by the time their superseded attempts cost in the window (at least a second each), worst first."
+            "description": "Up to 5 tests by the time their superseded attempts cost in the window (at least a second each), worst first - each test once across projects, the Overview's Where the time goes (since 1.0.0-beta.19)."
           },
           "runsSeries": {
             "type": "array",
@@ -7268,7 +8131,6 @@
           "suiteSize",
           "windowStability",
           "timeLost",
-          "failingTests",
           "testMetrics",
           "slowestTests",
           "timeSinks",

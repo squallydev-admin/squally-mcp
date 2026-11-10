@@ -141,8 +141,8 @@ squally-mcp trusts your operating system's certificate store, like your browser 
 | `squally-find-run` | Which runs happened — latest, or by branch, commit SHA, status or source. Counters only. | cheap |
 | `squally-get-run` | One run with its per-test rows, across all shards. Which test is red. | cheap |
 | `squally-debug-failure` | Every attempt of one test in one run: error, stack, full-context prompt. | cheap |
-| `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period. | cheap — one test |
-| `squally-list-tests` | Every test with a run in the period, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
+| `squally-get-test-metrics` | One test's stability, flaky rate and failure rate over a period, across its Playwright projects. | cheap — one test |
+| `squally-list-tests` | Every test with a run in the period, once across its Playwright projects, ranked by stability, flaky rate or failures. | cheap — two queries, paged |
 | `squally-list-errors` | Error signatures in a period: what keeps failing, grouped, and how its runs ended. | cheap |
 
 For a single test use `squally-get-test-metrics`, not `squally-list-tests` —
@@ -166,6 +166,29 @@ timeout - and, from squally-reporter 0.11.0, which job of its CI run it is
 `attempt`, which run it re-ran (`rerunOf`) and where the CI run is
 (`ciRunUrl`; for GitHub Actions also for older reporters when the project
 has one linked repository).
+
+### Playwright projects
+
+A run counts like Playwright: `squally-find-run`, `squally-get-run` and
+`squally-debug-failure` have one result per test and Playwright project, named
+with its project (`chromium > cart.spec.ts > adds`). What is collected across
+runs — `squally-list-tests`, `squally-get-test-metrics` and
+`squally-list-errors` — counts a test **once across its Playwright projects**,
+by its name without the project (`cart.spec.ts > adds`), and names the
+projects in `projects`: a run failed for the test when it failed in any
+project, and passed only after a retry when it did so in some project and
+failed in none. `variants` carries each project's own numbers. Since 0.9.0
+(read API 1.0.0-beta.19); before, each project's variant was its own test.
+
+`squally-list-tests` takes `project` as a list (`["chromium", "firefox"]`) to
+count only those projects. `squally-get-test-metrics` takes the name without
+the project for every project; `project`, or the stored name with its project,
+gives one project's variant. `squally-debug-failure` takes the name
+`squally-get-run` lists, project included.
+
+Flaky is a count, not a run status: a run's status is `passed`, `failed`,
+`cancelled`, `incomplete` or `running`, and its `counts.flaky` says how many
+tests passed only after a retry.
 
 ### What the numbers mean
 
@@ -200,17 +223,23 @@ The three least stable tests of the last 30 days (abridged):
   "population": "ci_groups_finished_not_mass_failure",
   "days": 30,
   "sort": "stability",
-  "total": 409,
+  "total": 205,
   "items": [
     {
-      "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code",
+      "testName": "checkout.spec.ts > Checkout > applies a coupon code",
       "filePath": "tests/checkout.spec.ts",
+      "projects": ["chromium", "firefox"],
       "runs": 8,
       "stability": 0.5,
       "flakyRate": 0.5,
       "failureRate": 0,
       "timeLostMs": 7361,
-      "topBranch": { "branch": "main", "kind": "retries", "count": 3 }
+      "medianDurationMs": 1840,
+      "topBranch": { "branch": "main", "kind": "retries", "count": 3 },
+      "variants": [
+        { "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code", "project": "chromium", "runs": 8, "flakyRuns": 4 },
+        { "testName": "firefox > checkout.spec.ts > Checkout > applies a coupon code", "project": "firefox", "runs": 8, "flakyRuns": 0 }
+      ]
     }
   ]
 }
@@ -221,16 +250,19 @@ The three least stable tests of the last 30 days (abridged):
 ```json
 {
   "projectId": "3f7c2a91-5b8e-4d0a-9c61-2e4b7f0d8a15",
-  "testName": "chromium > checkout.spec.ts > Checkout > applies a coupon code"
+  "testName": "checkout.spec.ts > Checkout > applies a coupon code"
 }
 ```
 
-The same numbers as that test's row, for one test (abridged):
+The same numbers as that test's row, for one test across its projects
+(abridged); add `"project": "firefox"` for firefox's variant alone:
 
 ```json
 {
   "days": 30,
   "branch": null,
+  "projectFilter": null,
+  "projects": ["chromium", "firefox"],
   "runs": 8,
   "stableRuns": 4,
   "flakyRuns": 4,
@@ -242,7 +274,8 @@ The same numbers as that test's row, for one test (abridged):
 }
 ```
 
-Pass the name exactly as Squally shows it. When it exists in several spec
+Pass the name exactly as Squally shows it — without the project for the test
+across projects, with it for one project. When it exists in several spec
 files, the tool answers with the `filePath` values to retry with; a test with
 results but no counted run in the period answers `runs: 0` and `null`
 rates — an answer, not an error.
