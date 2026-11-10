@@ -56,6 +56,11 @@ function forParameter(schema: JsonSchema): z.ZodType {
       return integerSchema(schema);
     case "boolean":
       return z.boolean();
+    // 0.9.0: squally-list-tests' `project` is the first list parameter (API
+    // 1.0.0-beta.19, repeatable in the URL). Unread, a list fell through to
+    // the string case and ["chromium"] was refused as "expected string".
+    case "array":
+      return z.array(forParameter((schema["items"] ?? {}) as JsonSchema));
     case "string":
     default:
       return stringSchema(schema);

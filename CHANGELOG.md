@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.9.0 — breaking: requires read API 1.0.0-beta.19; tests counted once across Playwright projects
+
+**This version requires the read API 1.0.0-beta.19.** The output schemas of
+`squally-list-tests`, `squally-get-test-metrics` and `squally-list-errors`
+require `projects` (and the first two `variants`, `medianDurationMs` and
+`projectFilter`), so against an older API a client that validates structured
+output (the MCP SDK's does) rejects their responses. 0.8.4 against
+beta.19 fails too: the output schemas of `squally-list-tests` and
+`squally-get-test-metrics` require the `browser` field beta.19 no longer
+sends, so a validating client rejects every answer of the two. (0.8.4 sends
+`browser` only when the agent passes it - beta.19 answers that with a 400.)
+Release it on the day app.squally.dev serves beta.19.
+
+A run counts like Playwright, as before: `squally-find-run`, `squally-get-run`
+and `squally-debug-failure` have one result per test and Playwright project.
+What is collected across runs counts a test once across its Playwright
+projects and names them, as the Squally app does.
+
+### Added
+
+- `squally-get-test-metrics`: `project` (optional) - one Playwright
+  project's variant only.
+- `projects`, `variants` (each project's own runs, stable, flaky and failed
+  runs, time lost and median duration) and `medianDurationMs` on every row
+  of `squally-list-tests` and on `squally-get-test-metrics`;
+  `projectFilter` echoes the project filter on both.
+- `projects` on every error of `squally-list-errors`.
+- The server instructions state the counting rule: a run counts like
+  Playwright, what is collected across runs counts a test once across its
+  Playwright projects, and flaky is a count, not a run status.
+
+### Changed
+
+- `squally-list-tests`: one row per test across its Playwright projects,
+  where it was one per project's variant. `testName` is the name without the
+  project; a run failed when the test failed in any project, and passed only
+  after a retry when it did so in some project and failed in none. `browser`
+  is `project`, a list (`["chromium", "firefox"]`).
+- `squally-get-test-metrics`: `testName` without the project counts the test
+  across all its projects; a stored name with its project still works and
+  counts that project's variant only, like `project`.
+- `squally-list-errors`: `testCount`, `testNames` (names without the project),
+  `failedCount` and `flakyCount` count each test once across its projects.
+- The descriptions of `squally-find-run`, `squally-get-run` and
+  `squally-debug-failure` say they count per Playwright project variant;
+  `squally-debug-failure`'s `testName` is the name `squally-get-run` lists,
+  project included.
+- `src/openapi/v1.json` vendored from squally-app's read API
+  1.0.0-beta.19. It also brings the app's own rate limit: a 429 with a body
+  and `Retry-After: 60`. This server's 429 sentence ("wait 60 seconds, then
+  retry") still holds and did not change.
+
+### Removed
+
+- `browser` from `squally-list-tests` (input and every row) and from
+  `squally-get-test-metrics`. An agent that still sends it is told it
+  invented the argument; nothing is forwarded.
+
 ## 0.8.4 — annotations, the test's line, worker and start time
 
 0.8.4 follows the read API 1.0.0-beta.18 as served since 01.11.2026, which

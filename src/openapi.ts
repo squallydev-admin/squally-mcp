@@ -157,6 +157,45 @@ const PARAMETER_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
+ * Per operation, where one parameter name means two things (0.9.0, API
+ * 1.0.0-beta.19). Read before PARAMETER_DESCRIPTIONS.
+ *
+ * testName: the run's attempts route still takes a test's stored name - one
+ * Playwright project's variant, "chromium > cart.spec.ts > adds" - while the
+ * test metrics route takes the test across its projects, the name WITHOUT the
+ * project, as squally-list-tests lists it. One text for both would send the
+ * name squally-list-tests gives to squally-debug-failure, which answers
+ * test_not_found for it. Both keep the no-encoding sentence above.
+ *
+ * project on listTests: the document says "repeat the parameter" - URL
+ * syntax. A tool argument is a list; src/api.ts repeats it.
+ */
+const OPERATION_PARAMETER_DESCRIPTIONS: Record<string, Record<string, string>> = {
+  getRunTestAttempts: {
+    testName:
+      "The test's name exactly as squally-get-run lists it - with its Playwright project when it " +
+      'has one, for example "chromium > checkout flow > completes payment": one project\'s ' +
+      "variant, the way a run counts. Pass the name exactly as shown in Squally; do not " +
+      "URL-encode, the server does. A name used in several spec files also needs filePath.",
+  },
+  getTestMetrics: {
+    testName:
+      "The test's name WITHOUT its Playwright project, as squally-list-tests lists it - for " +
+      'example "checkout flow > completes payment" - counts the test across all its projects. ' +
+      'A stored name with its project ("chromium > checkout flow > completes payment", as ' +
+      "squally-get-run lists it) still works and counts that project's variant only, like " +
+      "project. Pass the name exactly as shown in Squally; do not URL-encode, the server does. " +
+      "A name used in several spec files also needs filePath.",
+  },
+  listTests: {
+    project:
+      'Only these Playwright projects, each exactly as named (e.g. ["chromium"] or ' +
+      '["chromium", "firefox"]): each test then counts only those projects\' variants. ' +
+      "Every project when absent.",
+  },
+};
+
+/**
  * Parameters of an operation that its tool does NOT offer - a deliberate
  * deviation from the OpenAPI document, like PARAMETER_DESCRIPTIONS above.
  *
@@ -207,7 +246,8 @@ export function toolParameters(operation: OpenApiOperation): OpenApiParameter[] 
  * agent as "there are no runs on that branch".
  *
  * Descriptions come from the document except for those in
- * PARAMETER_DESCRIPTIONS - see there for why those cannot - and the parameters
+ * OPERATION_PARAMETER_DESCRIPTIONS and PARAMETER_DESCRIPTIONS - see there for
+ * why those cannot - and the parameters
  * in OMITTED_PARAMETERS are not offered at all.
  */
 export function inputSchemaFor(operation: OpenApiOperation): JsonSchema {
@@ -216,7 +256,9 @@ export function inputSchemaFor(operation: OpenApiOperation): JsonSchema {
 
   for (const parameter of toolParameters(operation)) {
     const { description, ...rest } = parameter.schema as Record<string, unknown>;
-    const override = PARAMETER_DESCRIPTIONS[parameter.name];
+    const override =
+      OPERATION_PARAMETER_DESCRIPTIONS[operation.operationId]?.[parameter.name] ??
+      PARAMETER_DESCRIPTIONS[parameter.name];
     const text = override ?? parameter.description ?? (description as string | undefined);
     properties[parameter.name] = text === undefined ? { ...rest } : { ...rest, description: text };
     if (parameter.required) required.push(parameter.name);

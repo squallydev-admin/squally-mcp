@@ -100,6 +100,12 @@ export function buildUrl(
     // empty string would turn "not specified" into a 400. Except where the
     // empty string IS the value (EMPTY_IS_A_VALUE).
     if (value === undefined || value === null) continue;
+    // A list is the parameter repeated (?project=a&project=b, API
+    // 1.0.0-beta.19); an empty list is "not specified", like an empty string.
+    if (Array.isArray(value)) {
+      for (const item of value) query.append(parameter.name, String(item));
+      continue;
+    }
     if (value === "" && !EMPTY_IS_A_VALUE.has(parameter.name)) continue;
     query.set(parameter.name, String(value));
   }

@@ -54,11 +54,28 @@
 // row. Said here because "which tests were flaky in this run" is the question
 // the run page's Fix prompt sends an agent with.
 //
+// THE COUNTING RULE SINCE 0.9.0 (API 1.0.0-beta.19): a run counts like
+// Playwright, one result per test and Playwright project; what is collected
+// across runs counts a test once across its projects. Said here because the
+// two tool families now name a test differently - with and without its
+// project - and a model that mixes them asks squally-debug-failure for a name
+// it cannot resolve, or adds up per-project rows as if they were tests. "Flaky
+// is a count, not a run status" because a run's counts carry `flaky` beside
+// four statuses, and a model reads a fifth status into it.
+//
 // Exported as `squally-mcp/instructions` (package.json), so it stays a plain
 // constant - test/exports.test.js imports it through the package name.
 export const INSTRUCTIONS = [
   "Start with squally-list-projects; every other tool needs a projectId from it.",
   "For one test, use squally-get-test-metrics, not squally-list-tests.",
+  "A run counts like Playwright: squally-find-run, squally-get-run and squally-debug-failure",
+  "have one result per test and Playwright project, its name with the project",
+  '("chromium > cart.spec.ts > adds"). What is collected across runs - squally-list-tests,',
+  "squally-get-test-metrics, squally-list-errors - counts a test once across its Playwright",
+  "projects, by its name without the project, and names the projects: a run failed for the",
+  "test when it failed in any project, and passed only after a retry when it did so in some",
+  "project and failed in none. Flaky is a count, not a run status: a run's counts say how many",
+  "tests passed only after a retry, and its status never says flaky.",
   "Test metrics count the finished runs of the period, CI and local - a sharded run counts once -",
   "without runs that were a mass failure as a whole; pass source=ci or source=local",
   "to count only one of them. A run still in progress counts once all its shards have",
