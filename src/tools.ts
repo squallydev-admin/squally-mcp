@@ -118,8 +118,8 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "Every attempt of one test in one run - one Playwright project variant, by the name " +
       "squally-get-run lists, project included - oldest first, each with the error, the stack and " +
-      "the full-context prompt (the same text Copy the full context puts on the clipboard in " +
-      "Squally's Debug with AI panel), and the test's annotations (an issue link, a skip or fixme " +
+      "the full-context prompt (the same text Squally's Fix panel copies under Fix in your agent, " +
+      "Without MCP), and the test's annotations (an issue link, a skip or fixme " +
       "reason), its line, worker and start time. This is the " +
       "tool for 'why did this test fail'. If the test name is ambiguous, pass filePath.",
     answers: "Every attempt of one test in one run: error, stack, full-context prompt.",
