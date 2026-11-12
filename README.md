@@ -29,7 +29,7 @@ agent can read:
 - **per-test results** for a run, including which shard ran what;
 - for a failing attempt: the **error message and stack**, the **code snippet**
   — **verbatim source code from your test file** — and the **full-context
-  prompt** (the text behind Copy the full context in Squally), which carries the same snippet plus an **ARIA snapshot of your
+  prompt** (the text Squally's Fix panel copies under Fix in your agent, Without MCP), which carries the same snippet plus an **ARIA snapshot of your
   application at the moment of failure** (whatever was on screen, truncated to
   3000 characters);
 - **per-test metrics**: how often each test passed on the first try, passed

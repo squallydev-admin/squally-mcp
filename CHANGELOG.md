@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.1 — the full-context prompt named by today's Fix panel
+
+Text only, no schema or behaviour change; works with the read API
+1.0.0-beta.19 like 0.9.0.
+
+### Changed
+
+- `squally-debug-failure` names the full-context prompt by where it is in
+  Squally today: the text the Fix panel copies under **Fix in your agent,
+  Without MCP**. It said "Copy the full context" in the "Debug with AI
+  panel", names the app no longer has. The README says the same.
+
 ## 0.9.0 — breaking: requires read API 1.0.0-beta.19; tests counted once across Playwright projects
 
 **This version requires the read API 1.0.0-beta.19.** The output schemas of

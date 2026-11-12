@@ -590,6 +590,12 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // is squally-list-errors' description: the run counts say how the runs
   // ended, failedCount and flakyCount are (run, test) pairs.
   //
+  // 0.9.1: 6feb6b984fca113f -> 2a8977fca4aa9563. No re-vendor. Text only:
+  // squally-debug-failure names the full-context prompt by the app's current
+  // panel - "Fix in your agent, Without MCP" in the Fix panel - instead of
+  // "Copy the full context" in the "Debug with AI panel" (12.11.2026, the
+  // app's own AI removed).
+  //
   // 0.9.0: 11f751428cbc1358 -> 6feb6b984fca113f. Re-vendored from squally-app
   // claude/read-api-per-test (301e6f9, 10.11.2026; re-vendored from e35e212,
   // whose corrected 200 examples are not part of the tool list - the digest
@@ -615,7 +621,7 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // in squally-debug-failure's description naming them.
   assert.equal(
     digest(toolList()),
-    "6feb6b984fca113f",
+    "2a8977fca4aa9563",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );
