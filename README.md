@@ -1,7 +1,7 @@
 # squally-mcp
 
 A local [MCP](https://modelcontextprotocol.io) server that lets a coding agent
-read your [Squally](https://app.squally.dev) data: which runs happened, how
+read your [Squally](https://app.squally.dev/sign-up?src=mcp) data: which runs happened, how
 stable each test is, and why a particular test failed.
 
 It runs on your machine over stdio and talks to Squally's read API over HTTPS.

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.squally/mcp",
+  "title": "Squally",
+  "description": "Query Playwright test analytics from AI assistants: flaky tests, failures, CI time lost to retries.",
+  "websiteUrl": "https://docs.squally.dev/agents/mcp-server/",
+  "repository": {
+    "url": "https://github.com/squallydev-admin/squally-mcp",
+    "source": "github",
+    "id": "1385922785"
+  },
+  "version": "0.10.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "squally-mcp",
+      "version": "0.10.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SQUALLY_API_KEY",
+          "description": "Organization read key (sqly_ro_...), created in Squally under Organization > Read keys. Not the project ingest key.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "SQUALLY_API_URL",
+          "description": "Base URL of the Squally API. Defaults to https://app.squally.dev.",
+          "isRequired": false
+        },
+        {
+          "name": "SQUALLY_USE_SYSTEM_CA",
+          "description": "Set to 0 to use only Node's bundled certificates instead of also trusting the operating system's certificate store.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

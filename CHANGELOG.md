@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0 — prepared for the official MCP Registry as dev.squally/mcp
+
+No schema or behaviour change; works with the read API 1.0.0-beta.19 like
+0.9.1.
+
+### Added
+
+- `package.json` carries `"mcpName": "dev.squally/mcp"`, the name the
+  official MCP Registry checks the npm package against, and `server.json`
+  describes the server for the registry: the npm package over stdio and its
+  environment variables (`SQUALLY_API_KEY`, `SQUALLY_API_URL`,
+  `SQUALLY_USE_SYSTEM_CA`).
+
+### Changed
+
+- The README's link to Squally opens the sign-up page with `?src=mcp`.
+
 ## 0.9.1 — the full-context prompt named by today's Fix panel
 
 Text only, no schema or behaviour change; works with the read API

@@ -1,6 +1,7 @@
 {
   "name": "squally-mcp",
-  "version": "0.9.1",
+  "version": "0.10.0",
+  "mcpName": "dev.squally/mcp",
   "description": "Local MCP server for Squally — read-only access to your Playwright test runs, flaky tests and failures.",
   "license": "MIT",
   "author": "Squally",
