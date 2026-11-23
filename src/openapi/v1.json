@@ -3802,7 +3802,7 @@
                   "errors": [
                     {
                       "fingerprint": "9c1e5a7f3b2d8e4c6a0f1b9d7e3c5a2f8b4d6e0c1a9f7b3e5d2c8a4f6e0b1d3c",
-                      "title": "toHaveText · getByTestId('order-total')",
+                      "title": "Wrong text · getByTestId('order-total')",
                       "message": "Error: expect(locator).toHaveText(expected) failed Locator: getByTestId('order-total') Expected: \"€ 45.00\" Received: \"€ 50.00\" Timeout: 5000ms",
                       "category": "Assertion Failures",
                       "filePath": "tests/checkout.spec.ts",
@@ -4188,7 +4188,7 @@
                   },
                   "signature": {
                     "fingerprint": "9c1e5a7f3b2d8e4c6a0f1b9d7e3c5a2f8b4d6e0c1a9f7b3e5d2c8a4f6e0b1d3c",
-                    "title": "toHaveText · getByTestId('order-total')",
+                    "title": "Wrong text · getByTestId('order-total')",
                     "message": "Error: expect(locator).toHaveText(expected) failed Locator: getByTestId('order-total') Expected: \"€ 45.00\" Received: \"€ 50.00\" Timeout: 5000ms",
                     "category": "Assertion Failures",
                     "filePath": "tests/checkout.spec.ts",
@@ -6613,7 +6613,7 @@
                 },
                 "timeLostMs": {
                   "type": "integer",
-                  "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+                  "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at its own duration. 0 when every run passed on the first try."
                 },
                 "medianDurationMs": {
                   "anyOf": [
@@ -6921,7 +6921,7 @@
           },
           "timeLostMs": {
             "type": "integer",
-            "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at the final attempt's duration. 0 when every run passed on the first try."
+            "description": "Time spent on attempts that did not count, in ms, summed over runs and projects: a failed final attempt loses every attempt it made, one rescued by a retry the attempts before the pass, each at its own duration. 0 when every run passed on the first try."
           },
           "medianDurationMs": {
             "anyOf": [
@@ -7249,7 +7249,7 @@
                 },
                 "wastedMs": {
                   "type": "integer",
-                  "description": "Duration of the attempts that did not count - every attempt but each project's final one."
+                  "description": "Duration of the attempts that did not count - every attempt a retry replaced, and each project's final one when it failed."
                 },
                 "projects": {
                   "type": "array",
@@ -7392,7 +7392,15 @@
                   "type": "string"
                 },
                 "category": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "Assertion Failures",
+                    "Timeout Issues",
+                    "Element Not Found",
+                    "Network Issues",
+                    "Other"
+                  ],
+                  "description": "Why the error failed, by Squally's rule table over the example occurrence's message and its timeout flag - one of these five values; \"Other\" when no rule matched. The app shows them shortened (Assertion, Timeout, Element not found, Network, Other); this field keeps the full value. Documented as an enum on 2026-11-23; the values did not change."
                 },
                 "filePath": {
                   "type": [
@@ -7560,7 +7568,15 @@
                 "type": "string"
               },
               "category": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "Assertion Failures",
+                  "Timeout Issues",
+                  "Element Not Found",
+                  "Network Issues",
+                  "Other"
+                ],
+                "description": "Why the error failed, by Squally's rule table over the example occurrence's message and its timeout flag - one of these five values; \"Other\" when no rule matched. The app shows them shortened (Assertion, Timeout, Element not found, Network, Other); this field keeps the full value. Documented as an enum on 2026-11-23; the values did not change."
               },
               "filePath": {
                 "type": [
@@ -7972,7 +7988,7 @@
               "wastedAttempts",
               "wallClockMs"
             ],
-            "description": "Time spent on attempts a later retry superseded, in the window's finished runs of the source on the branch; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
+            "description": "Time spent on lost attempts - every attempt a later retry superseded, and the last attempt of a failed test, at their real durations - in the window's finished runs of the source on the branch; wallClockMs is the time those runs used - each shard's own duration, summed - and lostPercent is lostMs of it."
           },
           "testMetrics": {
             "type": "object",
@@ -8084,7 +8100,7 @@
                 "lostMs"
               ]
             },
-            "description": "Up to 5 tests by the time their superseded attempts cost in the window (at least a second each), worst first - each test once across projects, the Overview's Where the time goes (since 1.0.0-beta.19)."
+            "description": "Up to 5 tests by the time their lost attempts cost in the window - superseded ones and failed last ones, the test's timeLostMs - (at least a second each), worst first - each test once across projects, the Overview's Where the time goes (since 1.0.0-beta.19)."
           },
           "runsSeries": {
             "type": "array",
