@@ -619,9 +619,24 @@ test("the whole tool list is digest-pinned - a silent reword fails here", () => 
   // squally-get-run's test rows gain annotations (types) and location. The
   // re-vendor alone gives 159f2bad3505fbf4 (measured). The rest is one clause
   // in squally-debug-failure's description naming them.
+  //
+  // Unreleased (branch fix/errors-model-leftovers): 2a8977fca4aa9563 ->
+  // 3a5e758940394538. Re-vendored from squally-app fix/errors-model-leftovers
+  // (23.11.2026), still API 1.0.0-beta.19, nothing of ours changed.
+  // squally-list-errors' category is documented as an enum of its five values
+  // with a description (document only); the time-lost descriptions follow
+  // the 21.11.2026 behaviour change (a failed last attempt is lost time too),
+  // which had not been vendored yet. drift.test.js fails against the live
+  // document until squally-app ships this - same version, newer text.
+  //
+  // 0.11.0: 3a5e758940394538 -> 8e20edf2d75d5ff0. Re-vendored from squally-app
+  // fix/errors-model-leftovers (24.11.2026), API 1.0.0-beta.19 (additive):
+  // squally-list-errors' errors gain displayTitle (the app's title) and kind,
+  // both required. Ours: one sentence in squally-list-errors' description -
+  // name an error by displayTitle and its kind, title is the older spelling.
   assert.equal(
     digest(toolList()),
-    "2a8977fca4aa9563",
+    "8e20edf2d75d5ff0",
     "the tool list changed. If that was intended (a re-vendored OpenAPI document, " +
       "a reworded description), update this digest in the same commit.",
   );

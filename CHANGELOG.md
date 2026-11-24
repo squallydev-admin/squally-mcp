@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.0 — errors named as Squally shows them
+
+Works with the read API 1.0.0-beta.19; with a server from before its
+additive change of 2026-11-24 too (see Changed).
+
+### Added
+
+- `squally-list-errors`: every error carries `displayTitle` - the title
+  Squally shows for it in the Error explorer, on the error's page and in a
+  run's Errors tab, the test's own assertion message when it wrote one -
+  and `kind` ("Not visible", "Wrong text", "Timeout", or null). The tool's
+  description tells the model to name an error by them; `title` stays, the
+  older spelling (kind, then locator).
+
+### Changed
+
+- Against a server whose errors carry no `displayTitle` yet, the server
+  fills it from `title` and sets `kind` to null, so the answer still passes
+  a client's output validation. The only place the server adds to the API's
+  JSON; an answer that has the fields passes unchanged.
+- The vendored document also carries the read API's other changes of
+  2026-11-21 and 2026-11-23: the time-lost descriptions (a failed last
+  attempt is lost time too), `category` documented as an enum, and the
+  error signature built from the file the error was raised in.
+
 ## 0.10.0 — prepared for the official MCP Registry as dev.squally/mcp
 
 No schema or behaviour change; works with the read API 1.0.0-beta.19 like

@@ -147,6 +147,42 @@ test("squally-get-test-metrics: the documented test_not_found passes through", a
   }
 });
 
+// displayTitle (0.11.0, API 1.0.0-beta.19 additive): the schema requires it,
+// so a server from before it would fail the client's output validation - such
+// an answer gets title as its displayTitle and kind null (src/display-title.ts).
+test("squally-list-errors: an older server's answer without displayTitle gets title as it", async () => {
+  const example = successExample("listErrors");
+  const older = {
+    ...example,
+    errors: example.errors.map(({ displayTitle, kind, ...rest }) => rest),
+  };
+  const { client, close } = await connect(() => jsonResponse(200, older));
+  try {
+    const result = await client.callTool({ name: "squally-list-errors", arguments: MINIMAL_ARGS["squally-list-errors"] });
+    assert.notEqual(result.isError, true, JSON.stringify(result.content));
+    for (const [i, error] of result.structuredContent.errors.entries()) {
+      assert.equal(error.displayTitle, older.errors[i].title);
+      assert.equal(error.kind, null);
+    }
+    assert.match(result.content[0].text, /"displayTitle"/, "the text block is the same JSON");
+  } finally {
+    await close();
+  }
+});
+
+test("squally-list-errors: a current answer keeps its own displayTitle and kind", async () => {
+  const example = successExample("listErrors");
+  assert.ok(example.errors.length > 0, "the document's example lists an error");
+  for (const error of example.errors) assert.notEqual(error.displayTitle, error.title, "the example tells the two apart");
+  const { client, close } = await connect(() => jsonResponse(200, example));
+  try {
+    const result = await client.callTool({ name: "squally-list-errors", arguments: MINIMAL_ARGS["squally-list-errors"] });
+    assert.deepEqual(result.structuredContent, example, "unchanged, the server's own title kept");
+  } finally {
+    await close();
+  }
+});
+
 test("control: an answer that breaks the output schema is rejected by the client", async () => {
   // Without this, every pass above could mean "the client validates nothing".
   const broken = { ...successExample("getTestMetrics"), stability: "0.5" };

@@ -20,6 +20,11 @@
 // passed to the other is the mistake (squally-debug-failure takes the variant's
 // name, squally-get-test-metrics the test's).
 //
+// ERRORS ARE NAMED BY displayTitle SINCE 0.11.0 (API 1.0.0-beta.19 additive):
+// squally-list-errors is the one tool whose answer titles an error; its
+// description says to use the app's title. squally-get-run and
+// squally-debug-failure carry the raw message only - no title to swap.
+//
 // NAMES: squally-<verb>-<noun>, always prefixed (§5.0). The prefix is not
 // branding - an agent has several servers loaded at once, and a bare
 // `list_projects` is ambiguous the moment another server offers one.
@@ -185,7 +190,9 @@ export const TOOLS: ToolDefinition[] = [
       "ended: runs in which a test the error hit failed, and runs in which none failed and " +
       "one passed only after a retry. failedCount and flakyCount count (run, test) pairs " +
       "instead - a test once per run however many of its projects the error hit, and a run " +
-      "in which the error failed three tests counts three times there.",
+      "in which the error failed three tests counts three times there. Name an error to the " +
+      "user by displayTitle - the title Squally shows for it, the test's own assertion message " +
+      "when it wrote one - and its kind; title is an older spelling (kind, then locator).",
     answers: "Error signatures in a period: what keeps failing, grouped, and how its runs ended.",
     cost: "cheap",
   },
