@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.1 — vendored read API 1.0.0-beta.20
+
+No tool or behaviour change; works with the read API 1.0.0-beta.19 and
+1.0.0-beta.20.
+
+### Changed
+
+- The vendored document is the read API 1.0.0-beta.20: the project settings
+  carry `prCommentsEnabled` for pull request comments (GitHub) and merge
+  request notes (GitLab) alike, and `settings.github.prCommentsEnabled` is
+  marked deprecated. No tool of this server reads the settings, so no answer
+  changes.
+
 ## 0.11.0 — errors named as Squally shows them
 
 Works with the read API 1.0.0-beta.19; with a server from before its

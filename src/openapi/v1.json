@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "Squally Read API",
-    "version": "1.0.0-beta.19",
+    "version": "1.0.0-beta.20",
     "description": "Read access to a Squally organization's test results, for scripts, CI jobs and AI agents.\n\n**Authentication.** Every request goes to `https://app.squally.dev/api/v1` plus the path and carries an organization read key as `Authorization: Bearer sqly_ro_…`. With the key in `SQUALLY_API_KEY` - the variable the MCP server reads too - the first request lists the organization's projects:\n```sh\ncurl -H \"Authorization: Bearer $SQUALLY_API_KEY\" https://app.squally.dev/api/v1/projects\n```\nA read key is organization-wide (every project), created by an organization admin in Organization › Read keys, and expires after 30, 60, 90, 180 days as chosen at creation. There is no renewal: create a new key and revoke the old one. Project ingest keys (`sqly_…`) are refused with `wrong_key_type`.\n\n**Expiry warning.** From 7 days before a key expires, every authenticated response carries `Squally-Key-Expires-At` with the expiry instant (ISO-8601). Once it has passed, every request with the key is answered 401 `key_expired` (\"This read key expired on <date>. Create a new one in Organization › Read keys.\"); an expired key is never extended. To rotate without a gap: create a new key, switch your callers to it, then revoke the old one - an organization may hold several active keys, and each works until it expires or is revoked.\n\n**Rate limit.** Currently 60 requests per 60 seconds per key - a read key has its own budget, shared with nothing else. Over the limit the API answers 429 with `Retry-After: 60` and the usual error body, `{\"error\": \"Too many requests with this read key. Wait 60 seconds, then retry.\", \"code\": \"rate_limited\"}`. A caller far beyond the limit can be stopped earlier by the edge firewall with a bare 429 - no body, no `Retry-After`: wait 60 seconds just the same.\n\n**Counts.** A run's `total`, `passed`, `failed`, `flaky` and `skipped` count tests, each test once over all the run's shards by its final attempt: `passed` on the first try, `flaky` after a retry, `failed` when the final attempt failed; `total` = `passed` + `failed` + `skipped` + `flaky`. Figures over a period - a test's runs, an error's occurrences - count finished runs of the `source` parameter's kind, as each field's description says.\n\n**Playwright projects.** A run counts like Playwright: one row and one count per project's variant of a test - the run routes. Anything collected across runs counts a test ONCE across its Playwright projects and names them - `/tests`, a test's metrics and history, `/errors`, `/overview`: a run failed for the test when it failed in any project, flaky when it passed only after a retry in some project and failed in none. Since 1.0.0-beta.19; each project's variant was its own test before.\n\n**Run numbers.** `runNumber` is the run's number in its project, the #12 the app shows: counted up from 1 per project, one number for all shards of a run, never given twice. Runs removed by the plan's retention leave gaps. The run routes take the run's `id`, not its number.\n\n**Paging.** `/projects` and `/projects/{projectId}/branches` answer with every item at once, no paging. `/runs` pages with a cursor (`cursor`, `direction`, `perPage`); `/tests` and `/errors` page by number (`page`, 1-based - a page past the end answers the last page - and `perPage`).\n\n**Retries.** 429: wait the seconds Retry-After names (60), then retry. Requests are counted per key in 60-second windows. 5xx: retry with exponential backoff, starting at 1 second and capped at 30 seconds. 400, 401, 403, 404: never retry - the same request gets the same answer.\n\n**Plans.** The read API is part of the Standard and Pro plans. A key of an organization on Free is answered 403 `tier_too_low`; keys are not revoked on a downgrade and work again after an upgrade.\n\n**Errors.** Every error is `{\"error\": \"<sentence>\", \"code\": \"<slug>\"}`. The sentence may be reworded; the slug may not. An id that does not exist and an id that belongs to another organization get the same 404, byte for byte.\n\n**Test names in paths.** Test names are Playwright title paths and often contain `/`: URL-encode them, including `/` as `%2F`. The /tests/{testName} routes take a test's name without its project, as /tests lists it; a run's attempts route takes the name the run lists, with its project.\n\n**Sharded runs** are returned as one logical run: /runs lists one row per logical run, and the run routes answer for all shards whichever shard's id you pass.\n\n**Stability.** v1, beta. The API may change until the beta ends; every change is listed in the changelog (docs/openapi/CHANGELOG.md)."
   },
   "servers": [
@@ -5002,6 +5002,7 @@
                         "run_summary"
                       ]
                     },
+                    "prCommentsEnabled": true,
                     "github": {
                       "prCommentsEnabled": true
                     }
@@ -8225,6 +8226,10 @@
                   "events"
                 ]
               },
+              "prCommentsEnabled": {
+                "type": "boolean",
+                "description": "Whether the project posts its one comment per pull request (GitHub) or note per merge request (GitLab) - one switch for both (since 1.0.0-beta.20)."
+              },
               "github": {
                 "type": "object",
                 "properties": {
@@ -8234,12 +8239,15 @@
                 },
                 "required": [
                   "prCommentsEnabled"
-                ]
+                ],
+                "description": "Deprecated since 1.0.0-beta.20: the same value as settings.prCommentsEnabled, which covers GitHub and GitLab. Still sent.",
+                "deprecated": true
               }
             },
             "required": [
               "retentionDays",
               "slack",
+              "prCommentsEnabled",
               "github"
             ]
           }
