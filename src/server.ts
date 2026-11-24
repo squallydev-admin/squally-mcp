@@ -17,6 +17,7 @@ import {
 import type { Config } from "./config.js";
 import { callOperation, type Fetcher } from "./api.js";
 import { describeFailure } from "./diagnostics.js";
+import { withDisplayTitles } from "./display-title.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { inputSchemaFor, loadDocument, operationFor, outputSchemaFor } from "./openapi.js";
 import { toolResult } from "./result.js";
@@ -76,7 +77,10 @@ export function createServer(config: Config, version: string, fetcher: Fetcher =
           describeFailure(result.detail, result.causes),
       );
     }
-    return toolResult(result, document.errorCodes, config.apiBase);
+    // An older server's error signatures get displayTitle (src/display-title.ts).
+    const answered =
+      result.kind === "success" ? { ...result, data: withDisplayTitles(tool.operationId, result.data) } : result;
+    return toolResult(answered, document.errorCodes, config.apiBase);
   });
 
   return server;
