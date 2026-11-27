@@ -2,7 +2,8 @@
 
 Lokaler MCP-Server (stdio) über Squallys Lese-API. Spezifikation und
 Begründungen: `../squally-app/docs/read-api-mcp-spec.md` (§4.5, §4.6, §5, §6.1);
-offene Punkte in `../squally-app/docs/status.md`.
+offene Punkte als Issues in `squallydev-admin/squally-app`, Label `repo:mcp`
+(Board: https://github.com/users/squallydev-admin/projects/1).
 
 ## Arbeitsregeln
 
@@ -57,6 +58,16 @@ offene Punkte in `../squally-app/docs/status.md`.
 - **Ehrlich melden, was nicht geprüft werden konnte.**
 - **Nicht committen, stagen oder pushen**, solange nicht danach gefragt wird.
 - **Keine Drive-by-Änderungen.**
+- **Neue offene Punkte als Issue in `squallydev-admin/squally-app`** (seit
+  27.11.2026), nie als Datei hier und nie als Punkt in
+  `squally-app/docs/status.md`: `gh issue create --repo
+  squallydev-admin/squally-app --title "…" --label "<type>,repo:mcp"
+  --body-file <datei>`, dann `gh project item-add 1 --owner squallydev-admin
+  --url <issue-url>`. Labels und Pflege wie in `squally-app/AGENTS.md`
+  (*Doku-Pflege*). Commits: `Fixes squallydev-admin/squally-app#N`. Alte
+  status.md-Nummern heißen `status #NN`, nie nackt `#NN`. Dieses Repo ist
+  öffentlich: der Verweis zeigt Name und Nummer des privaten Repos — keine
+  Issue-Inhalte in Commit-Messages abschreiben.
 
 ## Konventionen
 
